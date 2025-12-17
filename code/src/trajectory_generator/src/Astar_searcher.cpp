@@ -189,8 +189,11 @@ double Astarpath::getHeu(MappingNodePtr node1, MappingNodePtr node2) {
   
   // 使用数字距离和一种类型的tie_breaker
   double heu;
-  double tie_breaker;
+  double tie_breaker = 1.0 + 1.0 / 10000;
   
+  heu = (node1->coord - node2->coord).norm();
+  heu *= tie_breaker;
+
   return heu;
 }
 
@@ -247,11 +250,19 @@ bool Astarpath::AstarSearch(Vector3d start_pt, Vector3d end_pt) {
 
   while (!Openset.empty()) {
     //1.弹出g+h最小的节点
-    //????
+    currentPtr = Openset.begin()->second;
+    Openset.erase(Openset.begin());
+
     //2.判断是否是终点
-    //????
+    if(currentPtr->index == goalIdx){
+      terminatePtr = currentPtr;
+      return true;
+    }
+
     //3.拓展当前节点
-    //????
+    AstarGetSucc(currentPtr, neighborPtrSets, edgeCostSets);
+    currentPtr->id = -1;
+
     for(unsigned int i=0;i<neighborPtrSets.size();i++)
     {
       
@@ -266,12 +277,21 @@ bool Astarpath::AstarSearch(Vector3d start_pt, Vector3d end_pt) {
       if(neighborPtr->id==0)
       {
         //4.填写信息，完成更新
-        //???
+        neighborPtr->g_score = tentative_g_score;
+        neighborPtr->f_score = tentative_g_score + getHeu(neighborPtr, endPtr);
+        neighborPtr->Father = currentPtr;
+        neighborPtr->id = 1;
+        Openset.insert(make_pair(neighborPtr->f_score, neighborPtr));
         continue;
       }
       else if(neighborPtr->id==1)
       {
-        //???
+        if(neighborPtr->g_score > tentative_g_score){
+          neighborPtr->g_score = tentative_g_score;
+          neighborPtr->Father = currentPtr;
+          neighborPtr->f_score = tentative_g_score + getHeu(neighborPtr, endPtr);
+          Openset.insert(make_pair(neighborPtr->f_score, neighborPtr));
+        }
       continue;
       }
     }
@@ -300,7 +320,9 @@ terminatePtr=terminatePtr->Father;
    *
    * **/
 
-  // ???
+  for (int i = front_path.size() - 1; i >= 0; i--) {
+    path.push_back(front_path[i]->coord);
+  }
 
   return path;
 }
