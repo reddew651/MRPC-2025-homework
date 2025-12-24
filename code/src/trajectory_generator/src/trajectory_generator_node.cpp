@@ -429,7 +429,7 @@ VectorXd timeAllocation(MatrixXd Path) {
         time(i) =2.0 * t + (dist - 2.0 * d) / _Vel;
     }
  }
-  return 2*time;
+  return time;
 }
 
 void visTrajectory(MatrixXd polyCoeff, VectorXd time) {
