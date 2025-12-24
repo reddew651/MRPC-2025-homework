@@ -85,6 +85,164 @@ void Astarpath::set_barrier(const double coord_x, const double coord_y,
   }
 }
 
+bool Astarpath::JPSearch(Vector3d start_pt, Vector3d end_pt) {
+  ros::Time time_1 = ros::Time::now();
+
+  Vector3i start_idx = coord2gridIndex(start_pt);
+  Vector3i end_idx = coord2gridIndex(end_pt);
+  goalIdx = end_idx;
+
+  start_pt = gridIndex2coord(start_idx);
+  end_pt = gridIndex2coord(end_idx);
+
+  MappingNodePtr startPtr = Map_Node[start_idx(0)][start_idx(1)][start_idx(2)];
+  startPtr->index = start_idx;
+  startPtr->coord = start_pt;
+  startPtr->g_score = 0;
+  startPtr->f_score = getHeu(startPtr, Map_Node[end_idx(0)][end_idx(1)][end_idx(2)]);
+  startPtr->id = 1;
+  startPtr->Father = NULL;
+
+  Openset.clear();
+  Openset.insert(make_pair(startPtr->f_score, startPtr));
+
+  vector<MappingNodePtr> neighborPtrSets;
+  vector<double> edgeCostSets;
+
+  while (!Openset.empty()) {
+    MappingNodePtr currentPtr = Openset.begin()->second;
+    Openset.erase(Openset.begin());
+    currentPtr->id = -1;
+
+    if (currentPtr->index == goalIdx) {
+      terminatePtr = currentPtr;
+      return true;
+    }
+
+    JPSGetSucc(currentPtr, neighborPtrSets, edgeCostSets);
+
+    for (size_t i = 0; i < neighborPtrSets.size(); i++) {
+      MappingNodePtr neighborPtr = neighborPtrSets[i];
+      double tentative_g_score = currentPtr->g_score + edgeCostSets[i];
+
+      if (neighborPtr->id != 1 && neighborPtr->id != -1) {
+        neighborPtr->g_score = tentative_g_score;
+        neighborPtr->f_score = tentative_g_score + getHeu(neighborPtr, Map_Node[end_idx(0)][end_idx(1)][end_idx(2)]);
+        neighborPtr->Father = currentPtr;
+        neighborPtr->id = 1;
+        Openset.insert(make_pair(neighborPtr->f_score, neighborPtr));
+      } else if (tentative_g_score < neighborPtr->g_score) {
+        // Update existing node in Openset
+        auto range = Openset.equal_range(neighborPtr->f_score);
+        for (auto it = range.first; it != range.second; ++it) {
+          if (it->second == neighborPtr) {
+            Openset.erase(it);
+            break;
+          }
+        }
+        neighborPtr->g_score = tentative_g_score;
+        neighborPtr->f_score = tentative_g_score + getHeu(neighborPtr, Map_Node[end_idx(0)][end_idx(1)][end_idx(2)]);
+        neighborPtr->Father = currentPtr;
+        Openset.insert(make_pair(neighborPtr->f_score, neighborPtr));
+      }
+    }
+  }
+
+  return false;
+}
+
+void Astarpath::JPSGetSucc(MappingNodePtr currentPtr, vector<MappingNodePtr> &neighborPtrSets, vector<double> &edgeCostSets) {
+  neighborPtrSets.clear();
+  edgeCostSets.clear();
+
+  Vector3i curIdx = currentPtr->index;
+  Vector3i parentIdx;
+  bool hasParent = (currentPtr->Father != NULL);
+  if (hasParent) parentIdx = currentPtr->Father->index;
+
+  auto addNeighbor = [&](const Vector3i &jumpIdx) {
+    MappingNodePtr node = Map_Node[jumpIdx(0)][jumpIdx(1)][jumpIdx(2)];
+    neighborPtrSets.push_back(node);
+    edgeCostSets.push_back((gridIndex2coord(jumpIdx) - currentPtr->coord).norm());
+  };
+
+  if (!hasParent) {
+    for (int dx = -1; dx <= 1; dx++) {
+      for (int dy = -1; dy <= 1; dy++) {
+        for (int dz = -1; dz <= 1; dz++) {
+          if (dx == 0 && dy == 0 && dz == 0) continue;
+          Vector3i jumpIdx;
+          if (jump(curIdx, Vector3i(dx, dy, dz), jumpIdx)) addNeighbor(jumpIdx);
+        }
+      }
+    }
+  } else {
+    Vector3i dir = curIdx - parentIdx;
+    dir(0) = (dir(0) > 0) ? 1 : ((dir(0) < 0) ? -1 : 0);
+    dir(1) = (dir(1) > 0) ? 1 : ((dir(1) < 0) ? -1 : 0);
+    dir(2) = (dir(2) > 0) ? 1 : ((dir(2) < 0) ? -1 : 0);
+
+    // Natural neighbors and forced neighbors
+    for (int dx = -1; dx <= 1; dx++) {
+      for (int dy = -1; dy <= 1; dy++) {
+        for (int dz = -1; dz <= 1; dz++) {
+          if (dx == 0 && dy == 0 && dz == 0) continue;
+          Vector3i expDir(dx, dy, dz);
+          // Simplified JPS: check all directions but prioritize the current direction
+          Vector3i jumpIdx;
+          if (jump(curIdx, expDir, jumpIdx)) addNeighbor(jumpIdx);
+        }
+      }
+    }
+  }
+}
+
+bool Astarpath::jump(const Vector3i &curIdx, const Vector3i &expDir, Vector3i &jumpIdx) {
+  Vector3i nextIdx = curIdx + expDir;
+  if (!isFree(nextIdx)) return false;
+  if (nextIdx == goalIdx) {
+    jumpIdx = nextIdx;
+    return true;
+  }
+
+  if (hasForced(nextIdx, expDir)) {
+    jumpIdx = nextIdx;
+    return true;
+  }
+
+  // Diagonal jumps
+  int dims = (expDir(0) != 0) + (expDir(1) != 0) + (expDir(2) != 0);
+  if (dims > 1) {
+    for (int i = 0; i < 3; i++) {
+      if (expDir(i) != 0) {
+        Vector3i subDir = Vector3i::Zero();
+        subDir(i) = expDir(i);
+        Vector3i dummy;
+        if (jump(nextIdx, subDir, dummy)) {
+          jumpIdx = nextIdx;
+          return true;
+        }
+      }
+    }
+  }
+
+  return jump(nextIdx, expDir, jumpIdx);
+}
+
+bool Astarpath::hasForced(const Vector3i &idx, const Vector3i &dir) {
+  // Simplified forced neighbor check for 3D
+  for (int i = 0; i < 3; i++) {
+    if (dir(i) == 0) {
+      Vector3i sideDir = Vector3i::Zero();
+      sideDir(i) = 1;
+      if (!isFree(idx + sideDir) && isFree(idx + sideDir + dir)) return true;
+      sideDir(i) = -1;
+      if (!isFree(idx + sideDir) && isFree(idx + sideDir + dir)) return true;
+    }
+  }
+  return false;
+}
+
 vector<Vector3d> Astarpath::getVisitedNodes() {
   vector<Vector3d> visited_nodes;
   for (int i = 0; i < GRID_X_SIZE; i++)
@@ -428,25 +586,20 @@ Vector3d Astarpath::getPosPoly(MatrixXd polyCoeff, int k, double t) {
 int Astarpath::safeCheck(MatrixXd polyCoeff, VectorXd time) {
   int unsafe_segment = -1; //-1 -> the whole trajectory is safe
 
-  double delta_t=resolution/1.0;//conservative advance step size;
-  double t = delta_t;
+  double delta_t = 0.02; // More frequent checks to avoid skipping obstacles
   Vector3d advancePos;
   for(int i=0;i<polyCoeff.rows();i++)
   {
-    while(t<time(i)){
-     advancePos=getPosPoly(polyCoeff,i,t) ;
+    double t = 0.0;
+    while(t < time(i)){
+     advancePos = getPosPoly(polyCoeff, i, t);
      if(isOccupied(coord2gridIndex(advancePos))){
-       unsafe_segment=i;
+       unsafe_segment = i;
        break;
      }   
-     t+=delta_t;
+     t += delta_t;
     }
-    if(unsafe_segment!=-1){
-
-      break;
-    }else{
-      t=delta_t;
-    }
+    if(unsafe_segment != -1) break;
   }
   return unsafe_segment;
 }

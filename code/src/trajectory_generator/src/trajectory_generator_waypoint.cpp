@@ -22,81 +22,77 @@ Eigen::MatrixXd TrajectoryGeneratorWaypoint::PolyQPGeneration(
     const Eigen::MatrixXd &Acc,  // boundary acceleration
     const Eigen::VectorXd &Time) // time allocation in each segment
 {
-  // enforce initial and final velocity and accleration, for higher order
-  // derivatives, just assume them be 0;
   int p_order = 2 * d_order - 1; // the order of polynomial
   int p_num1d = p_order + 1;     // the number of variables in each segment
 
   int m = Time.size();
-  MatrixXd PolyCoeff=Eigen::MatrixXd::Zero(m, 3 * p_num1d);
- 
-  /**
-   *
-   * STEP 3.2:  generate a minimum-jerk piecewise monomial polynomial-based
-   * trajectory
-   *
-   * **/
-  int dim = m*6;
-   Eigen::MatrixXd M = Eigen::MatrixXd::Zero(dim , dim);
-   Eigen::MatrixXd  b = Eigen::MatrixXd::Zero(dim,3);
-   Eigen::MatrixXd coefficientMatrix= Eigen::MatrixXd::Zero(dim,3);
-   VectorXd initialPos=Path.row(0);
-   VectorXd initialVel=Vel.row(0);
-  VectorXd initialAcc=Acc.row(0);
-  VectorXd terminalPos=Path.row(Path.rows()-1);
-   VectorXd terminalVel=Vel.row(1);
-  VectorXd terminalAcc=Acc.row(1);
-   //填入F_0分块矩阵
-   M.block(0,0,3,6)<< 1,  0,  0,  0,  0,  0,\
-               0,  1,  0,  0,  0,  0,\
-               0,  0,  2,  0,  0,  0;
-   //填入对应右端项
-   b.block(0,0,3,3)<<initialPos(0),initialPos(1),initialPos(2),\
-                                        initialVel(0),initialVel(1),initialVel(2),\
-                                        initialAcc(0),initialAcc(1),initialAcc(2);
-   //填入Ei和Fi分块矩阵
-   for(int i =0;i<dim/6-1;i++)
-   {
-       int index = i*6;
-       double t =Time(i);
-    //    填入Fi分块矩阵
-           M.block(index+3,index+6,6,6)<< 0,  0,  0,  0,  0,  0,\
-              -1,  0,  0,  0,  0,  0,\
-               0, -1,  0,  0,  0,  0,\
-               0,  0,  -2,  0,  0,  0,\
-               0,  0,  0,  -6,  0,  0,\
-               0,  0,  0,  0,  -24, 0;
-           b.block(index+3,0,1,3)=Path.row(i+1);
-    //    填入Ei分块矩阵
-           M.block(index+3,index,6,6)<<1,    t,     pow(t,2),    pow(t,3),    pow(t,4),    pow(t,5),  \
-                                                                        1,    t,     pow(t,2),    pow(t,3),    pow(t,4),    pow(t,5),  \
-                                                                        0,    1,     2*t,      3*pow(t,2),    4*pow(t,3),    5*pow(t,4), \
-                                                                        0,    0,    2,     6*t,    12*t*t,    20*pow(t,3) ,\
-                                                                        0,    0,    0,     6,     24*t,    60*t*t,\
-                                                                        0,    0,    0,     0,     24,     120*t;
-   }
-   //填入分块矩阵E_M
-   double t=Time(dim/6-1);
-   M.block(dim-3,dim-6,3,6)<<1,    t,     pow(t,2),    pow(t,3),    pow(t,4),    pow(t,5),  \
-                                                            0,    1,     2*t,      3*pow(t,2),    4*pow(t,3),    5*pow(t,4), \
-                                                            0,    0,    2,     6*t,    12*t*t,    20*pow(t,3);
-   b.block(dim-3,0,3,3)<<terminalPos(0),terminalPos(1),terminalPos(2),\
-                                        terminalVel(0),terminalVel(1),terminalVel(2),\
-                                        terminalAcc(0),terminalAcc(1),terminalAcc(2);
-  //  std::cout<<"M is "<<M<<endl;;
-  //  std::cout<<"b is "<<b<<endl;
-//    基于LU分解，求解三个方向上的分段系数
-   for (int i=0;i<3;i++){
-          coefficientMatrix.col(i)=M.lu().solve(b.col(i));
-   }
-  for(int i=0;i<m;i++)
-  {
-    for(int j=0;j<3;j++)
-    {
-      VectorXd mVec = coefficientMatrix.block(i*p_num1d,j,6,1);
-      PolyCoeff.block(i,j*p_num1d,1,6)=mVec.transpose();
+  MatrixXd PolyCoeff = Eigen::MatrixXd::Zero(m, 3 * p_num1d);
+
+  int dim = m * p_num1d;
+  Eigen::MatrixXd M = Eigen::MatrixXd::Zero(dim, dim);
+  Eigen::MatrixXd b = Eigen::MatrixXd::Zero(dim, 3);
+
+  auto factorial = [](int n) {
+    double res = 1.0;
+    for (int i = 1; i <= n; ++i) res *= i;
+    return res;
+  };
+
+  // Initial conditions (p, v, a, j, ...) at t=0 of first segment
+  for (int i = 0; i < d_order; ++i) {
+    M(i, i) = factorial(i);
+  }
+  b.row(0) = Path.row(0);
+  b.row(1) = Vel.row(0);
+  b.row(2) = Acc.row(0);
+  // Higher order derivatives at start are 0
+
+  // Continuity constraints and intermediate waypoints
+  for (int i = 0; i < m - 1; ++i) {
+    double t = Time(i);
+    int idx = (i + 1) * p_num1d;
+
+    // Position constraint at end of segment i
+    for (int j = 0; j < p_num1d; ++j) {
+      M(idx - d_order, i * p_num1d + j) = pow(t, j);
+    }
+    b.row(idx - d_order) = Path.row(i + 1);
+
+    // Continuity constraints at junction i / i+1
+    for (int k = 0; k < p_order; ++k) {
+      // Derivative k of segment i at t=T_i
+      for (int j = k; j < p_num1d; ++j) {
+        double val = factorial(j) / factorial(j - k) * pow(t, j - k);
+        M(idx - d_order + 1 + k, i * p_num1d + j) = val;
+      }
+      // Derivative k of segment i+1 at t=0
+      M(idx - d_order + 1 + k, (i + 1) * p_num1d + k) = -factorial(k);
     }
   }
+
+  // Terminal conditions at t=T_m of last segment
+  double t_last = Time(m - 1);
+  int last_idx = (m - 1) * p_num1d;
+  for (int k = 0; k < d_order; ++k) {
+    for (int j = k; j < p_num1d; ++j) {
+      M(dim - d_order + k, last_idx + j) = factorial(j) / factorial(j - k) * pow(t_last, j - k);
+    }
+  }
+  b.row(dim - d_order) = Path.row(m);
+  b.row(dim - d_order + 1) = Vel.row(1);
+  b.row(dim - d_order + 2) = Acc.row(1);
+
+  // Solve
+  Eigen::MatrixXd coefficientMatrix = M.lu().solve(b);
+
+  for (int i = 0; i < m; i++) {
+    for (int j = 0; j < 3; j++) {
+      PolyCoeff.block(i, j * p_num1d, 1, p_num1d) = coefficientMatrix.block(i * p_num1d, j, p_num1d, 1).transpose();
+    }
+  }
+
+  return PolyCoeff;
+}
   return PolyCoeff;
 }
 

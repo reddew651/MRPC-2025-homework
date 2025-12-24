@@ -254,7 +254,7 @@ void rcvPointCloudCallBack(const sensor_msgs::PointCloud2 &pointcloud_map) {
 
 bool trajGeneration() {
 
-  bool astar_success =_astar_path_finder->AstarSearch(start_pt, target_pt);
+  bool astar_success =_astar_path_finder->JPSearch(start_pt, target_pt);
 
   if(!astar_success){
      _astar_path_finder->resetUsedGrids();

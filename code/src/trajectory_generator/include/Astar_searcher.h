@@ -29,6 +29,12 @@ class Astarpath
 
 		double getHeu(MappingNodePtr node1, MappingNodePtr node2);
 		void AstarGetSucc(MappingNodePtr currentPtr, std::vector<MappingNodePtr> & neighborPtrSets, std::vector<double> & edgeCostSets);		
+		
+		// JPS helpers
+		void JPSGetSucc(MappingNodePtr currentPtr, std::vector<MappingNodePtr> & neighborPtrSets, std::vector<double> & edgeCostSets);
+		bool jump(const Eigen::Vector3i & curIdx, const Eigen::Vector3i & expDir, Eigen::Vector3i & jumpIdx);
+		bool hasForced(const Eigen::Vector3i & idx, const Eigen::Vector3i & dir);
+
 		Eigen::Vector3d gridIndex2coord(const Eigen::Vector3i & index);
 		Eigen::Vector3i coord2gridIndex(const Eigen::Vector3d & pt);
 		bool isOccupied(const int & idx_x, const int & idx_y, const int & idx_z) const;
@@ -43,6 +49,7 @@ class Astarpath
 		Astarpath(){};
 		~Astarpath(){};
 		bool AstarSearch(Eigen::Vector3d start_pt, Eigen::Vector3d end_pt);
+		bool JPSearch(Eigen::Vector3d start_pt, Eigen::Vector3d end_pt);
 		void resetGrid(MappingNodePtr ptr);
 		void resetUsedGrids();
 		bool is_occupy(const Eigen::Vector3i & index);
