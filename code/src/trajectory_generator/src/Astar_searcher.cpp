@@ -255,7 +255,7 @@ vector<Vector3d> Astarpath::getVisitedNodes() {
           visited_nodes.push_back(Map_Node[i][j][k]->coord);
       }
 
-  ROS_WARN("visited_nodes size : %d", visited_nodes.size());
+  ROS_WARN("visited_nodes size : %zu", visited_nodes.size());
   return visited_nodes;
 }
 

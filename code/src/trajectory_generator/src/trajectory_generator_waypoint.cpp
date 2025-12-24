@@ -93,8 +93,6 @@ Eigen::MatrixXd TrajectoryGeneratorWaypoint::PolyQPGeneration(
 
   return PolyCoeff;
 }
-  return PolyCoeff;
-}
 
 double TrajectoryGeneratorWaypoint::getObjective() {
   _qp_cost = (_Px.transpose() * _Q * _Px + _Py.transpose() * _Q * _Py +
