@@ -45,9 +45,25 @@ add_executable(trajectory_generator_node
 	src/trajectory_generator_node.cpp
 	src/trajectory_generator_waypoint.cpp
   src/Astar_searcher.cpp
+  src/rrt_star_searcher.cpp
+  src/minimum_snap_trajectory.cpp
 )
 
 target_link_libraries(trajectory_generator_node
+   ${catkin_LIBRARIES}
+   ${PCL_LIBRARIES}
+)
+
+# 改进版轨迹生成节点 - 支持多种规划算法切换
+add_executable(trajectory_generator_improved
+  src/trajectory_generator_improved.cpp
+  src/trajectory_generator_waypoint.cpp
+  src/Astar_searcher.cpp
+  src/rrt_star_searcher.cpp
+  src/minimum_snap_trajectory.cpp
+)
+
+target_link_libraries(trajectory_generator_improved
    ${catkin_LIBRARIES}
    ${PCL_LIBRARIES}
 )

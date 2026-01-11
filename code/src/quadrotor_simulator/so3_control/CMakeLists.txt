@@ -162,11 +162,13 @@ include_directories(
 ## Declare a cpp executable
 #add_executable(odom_visualization src/odom_visualization.cpp)
 add_library(SO3Control src/SO3Control.cpp)
+add_library(ImprovedSO3Control src/ImprovedSO3Control.cpp)
 add_library(so3_control_nodelet src/so3_control_nodelet.cpp)
 
 target_link_libraries(so3_control_nodelet 
     ${catkin_LIBRARIES}
     SO3Control
+    ImprovedSO3Control
 )
 
 ## Add cmake target dependencies of the executable/library
