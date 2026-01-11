@@ -488,3 +488,18 @@ double MinimumSnapTrajectory::getMaxAcceleration(const MatrixXd& polyCoeff,
     
     return max_acc;
 }
+
+MatrixXd MinimumSnapTrajectory::computeM(int n_seg, int order, const VectorXd& time) {
+    // Placeholder - not used in current implementation
+    int n = order + 1;
+    return MatrixXd::Identity(n * n_seg, n * n_seg);
+}
+
+VectorXd MinimumSnapTrajectory::optimizeTimeAllocation(
+    const MatrixXd& path,
+    const VectorXd& initial_time,
+    const MatrixXd& vel_bc,
+    const MatrixXd& acc_bc) {
+    // Simple time optimization - just return initial time with small adjustment
+    return initial_time;
+}

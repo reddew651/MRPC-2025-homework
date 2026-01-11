@@ -108,10 +108,10 @@ void visPath(MatrixXd nodes);
 void trajOptimization(Eigen::MatrixXd path);
 bool trajGeneration();
 VectorXd timeAllocation(MatrixXd Path);
-VectorXd improvedTimeAllocation(MatrixXd Path);
 Vector3d getPos(double t_cur);
 Vector3d getVel(double t_cur);
 void visRRTTree(const vector<pair<Vector3d, Vector3d>>& edges);
+void trajPublish(MatrixXd polyCoeff, VectorXd time);
 
 // ==================== Callbacks ====================
 void rcvOdomCallback(const nav_msgs::Odometry::ConstPtr &odom) {
