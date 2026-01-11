@@ -16,7 +16,7 @@ RRTStarSearcher::RRTStarSearcher()
     , start_node_(nullptr)
     , goal_node_(nullptr)
 {
-    // 初始化随机数生成器
+    // Initialize random number generator
     std::random_device rd;
     gen_ = std::mt19937(rd());
     dis_ = std::uniform_real_distribution<double>(0.0, 1.0);
@@ -74,7 +74,7 @@ bool RRTStarSearcher::isOccupied(const Vector3d& pos) {
     if (pos(0) < gl_xl_ || pos(0) >= gl_xu_ ||
         pos(1) < gl_yl_ || pos(1) >= gl_yu_ ||
         pos(2) < gl_zl_ || pos(2) >= gl_zu_) {
-        return true;  // 超出边界视为障碍
+        return true;  // Out of bounds treated as obstacle
     }
     
     Vector3i idx = coord2gridIndex(pos);
@@ -82,12 +82,12 @@ bool RRTStarSearcher::isOccupied(const Vector3d& pos) {
 }
 
 Vector3d RRTStarSearcher::sampleRandomPoint() {
-    // 使用目标偏置采样
+    // Goal-biased sampling
     if (dis_(gen_) < goal_bias_) {
         return goal_pos_;
     }
     
-    // 随机采样
+    // Random sampling
     Vector3d random_point;
     random_point(0) = gl_xl_ + dis_(gen_) * (gl_xu_ - gl_xl_);
     random_point(1) = gl_yl_ + dis_(gen_) * (gl_yu_ - gl_yl_);
@@ -128,8 +128,8 @@ bool RRTStarSearcher::isCollisionFree(const Vector3d& from, const Vector3d& to) 
     
     if (distance < 1e-6) return !isOccupied(from);
     
-    // 沿路径检查碰撞
-    double check_resolution = resolution_ * 0.5;  // 检查分辨率
+    // Check collision along path
+    double check_resolution = resolution_ * 0.5;  // Check resolution
     int num_checks = static_cast<int>(ceil(distance / check_resolution));
     
     for (int i = 0; i <= num_checks; ++i) {
@@ -162,13 +162,13 @@ void RRTStarSearcher::rewire(RRTNode* new_node, vector<RRTNode*>& nearby_nodes) 
         double new_cost = new_node->cost + (new_node->position - near_node->position).norm();
         
         if (new_cost < near_node->cost && isCollisionFree(new_node->position, near_node->position)) {
-            // 从旧父节点移除
+            // Remove from old parent
             if (near_node->parent) {
                 auto& children = near_node->parent->children;
                 children.erase(std::remove(children.begin(), children.end(), near_node), children.end());
             }
             
-            // 设置新父节点
+            // Set new parent
             near_node->parent = new_node;
             near_node->cost = new_cost;
             new_node->children.push_back(near_node);
@@ -179,17 +179,17 @@ void RRTStarSearcher::rewire(RRTNode* new_node, vector<RRTNode*>& nearby_nodes) 
 bool RRTStarSearcher::search(const Vector3d& start_pt, const Vector3d& end_pt) {
     ros::Time start_time = ros::Time::now();
     
-    // 重置
+    // Reset
     reset();
     goal_pos_ = end_pt;
     
-    // 检查起点和终点有效性
+    // Check start and goal validity
     if (isOccupied(start_pt) || isOccupied(end_pt)) {
         ROS_WARN("[RRT*] Start or goal is in obstacle!");
         return false;
     }
     
-    // 创建起始节点
+    // Create start node
     start_node_ = new RRTNode(start_pt);
     tree_.push_back(start_node_);
     
@@ -197,24 +197,24 @@ bool RRTStarSearcher::search(const Vector3d& start_pt, const Vector3d& end_pt) {
     double best_goal_cost = std::numeric_limits<double>::max();
     
     for (int i = 0; i < max_iterations_; ++i) {
-        // 采样随机点
+        // Sample random point
         Vector3d random_point = sampleRandomPoint();
         
-        // 找到最近节点
+        // Find nearest node
         RRTNode* nearest = findNearestNode(random_point);
         
-        // 转向
+        // Steer
         Vector3d new_point = steer(nearest->position, random_point);
         
-        // 碰撞检测
+        // Collision detection
         if (!isCollisionFree(nearest->position, new_point)) {
             continue;
         }
         
-        // 创建新节点
+        // Create new node
         RRTNode* new_node = new RRTNode(new_point);
         
-        // RRT* 改进: 选择最优父节点
+        // RRT* improvement: select optimal parent node
         vector<RRTNode*> nearby = findNearbyNodes(new_point, rewire_radius_);
         
         RRTNode* best_parent = nearest;
@@ -228,16 +228,16 @@ bool RRTStarSearcher::search(const Vector3d& start_pt, const Vector3d& end_pt) {
             }
         }
         
-        // 连接到最优父节点
+        // Connect to optimal parent node
         new_node->parent = best_parent;
         new_node->cost = best_cost;
         best_parent->children.push_back(new_node);
         tree_.push_back(new_node);
         
-        // 重连接
+        // Rewire
         rewire(new_node, nearby);
         
-        // 检查是否到达目标
+        // Check if goal reached
         double dist_to_goal = (new_point - goal_pos_).norm();
         if (dist_to_goal < goal_threshold_ && isCollisionFree(new_point, goal_pos_)) {
             double total_cost = new_node->cost + dist_to_goal;
@@ -250,7 +250,7 @@ bool RRTStarSearcher::search(const Vector3d& start_pt, const Vector3d& end_pt) {
     }
     
     if (best_goal_node != nullptr) {
-        // 添加目标节点
+        // Add goal node
         goal_node_ = new RRTNode(goal_pos_);
         goal_node_->parent = best_goal_node;
         goal_node_->cost = best_goal_cost;
@@ -318,7 +318,7 @@ vector<Vector3d> RRTStarSearcher::smoothPath(const vector<Vector3d>& path) {
     while (current < path.size() - 1) {
         size_t farthest = current + 1;
         
-        // 找到最远可直达的点
+        // Find farthest directly reachable point
         for (size_t j = current + 2; j < path.size(); ++j) {
             if (isCollisionFree(path[current], path[j])) {
                 farthest = j;

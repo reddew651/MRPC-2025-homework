@@ -7,8 +7,8 @@ using namespace Eigen;
 using namespace std;
 
 MinimumSnapTrajectory::MinimumSnapTrajectory() 
-    : order_(7)  // 7阶多项式 (8个系数)
-    , derivative_order_(4)  // 最小化snap (4阶导数)
+    : order_(7)  // 7th order polynomial (8 coefficients)
+    , derivative_order_(4)  // Minimize snap (4th derivative)
 {
 }
 
@@ -46,7 +46,7 @@ VectorXd MinimumSnapTrajectory::timeDerivative(double t, int order, int deriv_or
 }
 
 MatrixXd MinimumSnapTrajectory::computeQ(int n_seg, int order, double t, int deriv_order) {
-    // Q矩阵用于计算代价函数 (snap的积分)
+    // Q matrix for computing cost function (integral of snap)
     int n = order + 1;
     MatrixXd Q = MatrixXd::Zero(n, n);
     
@@ -68,64 +68,64 @@ MatrixXd MinimumSnapTrajectory::generateTrajectory(
     const MatrixXd& acc_bc,
     const VectorXd& time) {
     
-    int n_seg = time.size();        // 段数
-    int n_coeff = order_ + 1;       // 每段系数数量
-    int deriv = derivative_order_;  // 优化的导数阶数
+    int n_seg = time.size();        // Number of segments
+    int n_coeff = order_ + 1;       // Number of coefficients per segment
+    int deriv = derivative_order_;  // Order of derivative to optimize
     
-    // 每段有n_coeff个未知数，总共n_seg * n_coeff个
+    // Each segment has n_coeff unknowns, total n_seg * n_coeff
     int dim = n_seg * n_coeff;
     
     MatrixXd polyCoeff = MatrixXd::Zero(n_seg, 3 * n_coeff);
     
-    // 对每个维度分别求解
+    // Solve for each dimension separately
     for (int d = 0; d < 3; ++d) {
-        // 构建约束矩阵和成本矩阵
+        // Build constraint matrix and cost matrix
         MatrixXd A = MatrixXd::Zero(dim, dim);
         VectorXd b = VectorXd::Zero(dim);
         MatrixXd Q = MatrixXd::Zero(dim, dim);
         
         int row = 0;
         
-        // 1. 起点约束 (位置、速度、加速度、jerk)
-        // 位置
+        // 1. Start point constraints (position, velocity, acceleration, jerk)
+        // Position
         A(row, 0) = 1.0;
         b(row) = path(0, d);
         row++;
         
-        // 速度
+        // Velocity
         A(row, 1) = 1.0;
         b(row) = vel_bc(0, d);
         row++;
         
-        // 加速度
+        // Acceleration
         A(row, 2) = 2.0;
         b(row) = acc_bc(0, d);
         row++;
         
-        // Jerk (通常设为0)
+        // Jerk (usually set to 0)
         A(row, 3) = 6.0;
         b(row) = 0.0;
         row++;
         
-        // 2. 终点约束
+        // 2. Endpoint constraints
         double t_last = time(n_seg - 1);
         int last_offset = (n_seg - 1) * n_coeff;
         
-        // 位置
+        // Position
         for (int i = 0; i < n_coeff; ++i) {
             A(row, last_offset + i) = pow(t_last, i);
         }
         b(row) = path(n_seg, d);
         row++;
         
-        // 速度
+        // Velocity
         for (int i = 1; i < n_coeff; ++i) {
             A(row, last_offset + i) = i * pow(t_last, i - 1);
         }
         b(row) = vel_bc(1, d);
         row++;
         
-        // 加速度
+        // Acceleration
         for (int i = 2; i < n_coeff; ++i) {
             A(row, last_offset + i) = i * (i - 1) * pow(t_last, i - 2);
         }
@@ -139,20 +139,20 @@ MatrixXd MinimumSnapTrajectory::generateTrajectory(
         b(row) = 0.0;
         row++;
         
-        // 3. 中间点位置约束和连续性约束
+        // 3. Intermediate point position constraints and continuity constraints
         for (int seg = 0; seg < n_seg - 1; ++seg) {
             double t = time(seg);
             int offset = seg * n_coeff;
             int next_offset = (seg + 1) * n_coeff;
             
-            // 位置约束 (通过中间路径点)
+            // Position constraint (through intermediate waypoints)
             for (int i = 0; i < n_coeff; ++i) {
                 A(row, offset + i) = pow(t, i);
             }
             b(row) = path(seg + 1, d);
             row++;
             
-            // 连续性约束: 位置连续
+            // Continuity constraint: position continuity
             for (int i = 0; i < n_coeff; ++i) {
                 A(row, offset + i) = pow(t, i);
             }
@@ -160,7 +160,7 @@ MatrixXd MinimumSnapTrajectory::generateTrajectory(
             b(row) = 0.0;
             row++;
             
-            // 速度连续
+            // Velocity continuity
             for (int i = 1; i < n_coeff; ++i) {
                 A(row, offset + i) = i * pow(t, i - 1);
             }
@@ -168,7 +168,7 @@ MatrixXd MinimumSnapTrajectory::generateTrajectory(
             b(row) = 0.0;
             row++;
             
-            // 加速度连续
+            // Acceleration continuity
             for (int i = 2; i < n_coeff; ++i) {
                 A(row, offset + i) = i * (i - 1) * pow(t, i - 2);
             }
@@ -176,7 +176,7 @@ MatrixXd MinimumSnapTrajectory::generateTrajectory(
             b(row) = 0.0;
             row++;
             
-            // Jerk连续
+            // Jerk continuity
             for (int i = 3; i < n_coeff; ++i) {
                 A(row, offset + i) = i * (i - 1) * (i - 2) * pow(t, i - 3);
             }
@@ -184,7 +184,7 @@ MatrixXd MinimumSnapTrajectory::generateTrajectory(
             b(row) = 0.0;
             row++;
             
-            // Snap连续 (对于7阶多项式)
+            // Snap continuity (for 7th order polynomial)
             if (order_ >= 4) {
                 for (int i = 4; i < n_coeff; ++i) {
                     A(row, offset + i) = i * (i - 1) * (i - 2) * (i - 3) * pow(t, i - 4);
@@ -194,7 +194,7 @@ MatrixXd MinimumSnapTrajectory::generateTrajectory(
                 row++;
             }
             
-            // Crackle连续 (对于7阶多项式)
+            // Crackle continuity (for 7th order polynomial)
             if (order_ >= 5) {
                 for (int i = 5; i < n_coeff; ++i) {
                     A(row, offset + i) = i * (i - 1) * (i - 2) * (i - 3) * (i - 4) * pow(t, i - 5);
@@ -205,16 +205,16 @@ MatrixXd MinimumSnapTrajectory::generateTrajectory(
             }
         }
         
-        // 构建Q矩阵 (代价矩阵)
+        // Construct Q matrix (cost matrix)
         for (int seg = 0; seg < n_seg; ++seg) {
             MatrixXd Qseg = computeQ(seg, order_, time(seg), deriv);
             Q.block(seg * n_coeff, seg * n_coeff, n_coeff, n_coeff) = Qseg;
         }
         
-        // 使用伪逆求解 (如果约束方程数等于未知数)
+        // Solve using pseudo-inverse (if number of constraint equations equals unknowns)
         VectorXd coeffs = A.colPivHouseholderQr().solve(b);
         
-        // 填充系数矩阵
+        // Fill coefficient matrix
         for (int seg = 0; seg < n_seg; ++seg) {
             for (int i = 0; i < n_coeff; ++i) {
                 polyCoeff(seg, d * n_coeff + i) = coeffs(seg * n_coeff + i);
@@ -236,24 +236,24 @@ VectorXd MinimumSnapTrajectory::allocateTime(
     for (int i = 0; i < n_seg; ++i) {
         double dist = (path.row(i + 1) - path.row(i)).norm();
         
-        // 考虑加速和减速阶段的梯形速度曲线
-        double t_acc = max_vel / max_acc;  // 加速时间
-        double d_acc = 0.5 * max_acc * t_acc * t_acc;  // 加速距离
+        // Trapezoidal velocity curve considering acceleration and deceleration phases
+        double t_acc = max_vel / max_acc;  // Acceleration time
+        double d_acc = 0.5 * max_acc * t_acc * t_acc;  // Acceleration distance
         
         if (dist < 2 * d_acc) {
-            // 短距离: 三角形速度曲线
+            // Short distance: triangular velocity curve
             time(i) = 2.0 * sqrt(dist / max_acc);
         } else {
-            // 长距离: 梯形速度曲线
+            // Long distance: trapezoidal velocity curve
             double d_const = dist - 2 * d_acc;
             double t_const = d_const / max_vel;
             time(i) = 2 * t_acc + t_const;
         }
         
-        // 添加安全裕度
+        // Add safety margin
         time(i) *= 1.2;
         
-        // 确保最小时间
+        // Ensure minimum time
         time(i) = max(time(i), 0.3);
     }
     
@@ -268,7 +268,7 @@ VectorXd MinimumSnapTrajectory::trapezoidalTimeAllocation(
     int n_seg = path.rows() - 1;
     VectorXd time = VectorXd::Zero(n_seg);
     
-    // 计算每段的方向变化角度
+    // Calculate direction change angle for each segment
     vector<double> angles(n_seg);
     for (int i = 0; i < n_seg; ++i) {
         if (i == 0 || i == n_seg - 1) {
@@ -277,14 +277,15 @@ VectorXd MinimumSnapTrajectory::trapezoidalTimeAllocation(
             Vector3d v1 = (path.row(i) - path.row(i - 1)).transpose();
             Vector3d v2 = (path.row(i + 1) - path.row(i)).transpose();
             double cos_angle = v1.dot(v2) / (v1.norm() * v2.norm() + 1e-6);
-            angles[i] = acos(std::clamp(cos_angle, -1.0, 1.0));
+            cos_angle = std::max(-1.0, std::min(1.0, cos_angle));
+            angles[i] = acos(cos_angle);
         }
     }
     
     for (int i = 0; i < n_seg; ++i) {
         double dist = (path.row(i + 1) - path.row(i)).norm();
         
-        // 根据转角调整速度限制
+        // Adjust velocity limit based on turning angle
         double angle_factor = 1.0;
         if (i > 0) {
             angle_factor = 1.0 - 0.5 * angles[i - 1] / M_PI;
@@ -294,9 +295,9 @@ VectorXd MinimumSnapTrajectory::trapezoidalTimeAllocation(
         }
         
         double adjusted_vel = max_vel * angle_factor;
-        adjusted_vel = max(adjusted_vel, max_vel * 0.3);  // 最低30%速度
+        adjusted_vel = max(adjusted_vel, max_vel * 0.3);  // Minimum 30% speed
         
-        // 梯形规划
+        // Trapezoidal planning
         double t_acc = adjusted_vel / max_acc;
         double d_acc = 0.5 * max_acc * t_acc * t_acc;
         
@@ -322,24 +323,24 @@ MinimumSnapTrajectory::OptimizeResult MinimumSnapTrajectory::generateOptimizedTr
     OptimizeResult result;
     result.success = false;
     
-    // 初始时间分配
+    // Initial time allocation
     VectorXd time = trapezoidalTimeAllocation(path, constraints_.max_vel, constraints_.max_acc);
     
-    // 生成轨迹
+    // Generate trajectory
     result.polyCoeff = generateTrajectory(path, vel_bc, acc_bc, time);
     result.timeAlloc = time;
     
-    // 迭代优化时间分配
+    // Iterative time allocation optimization
     int max_iter = 10;
     double scale_factor = 1.1;
     
     for (int iter = 0; iter < max_iter; ++iter) {
-        // 检查可行性
+        // Check feasibility
         double max_v = getMaxVelocity(result.polyCoeff, result.timeAlloc);
         double max_a = getMaxAcceleration(result.polyCoeff, result.timeAlloc);
         
         if (max_v <= constraints_.max_vel && max_a <= constraints_.max_acc) {
-            // 尝试缩短时间
+            // Try to shorten time
             VectorXd new_time = result.timeAlloc * 0.95;
             MatrixXd new_coeff = generateTrajectory(path, vel_bc, acc_bc, new_time);
             
@@ -350,10 +351,10 @@ MinimumSnapTrajectory::OptimizeResult MinimumSnapTrajectory::generateOptimizedTr
                 result.polyCoeff = new_coeff;
                 result.timeAlloc = new_time;
             } else {
-                break;  // 已经是最优
+                break;  // Already optimal
             }
         } else {
-            // 增加时间使其可行
+            // Increase time to make it feasible
             result.timeAlloc *= scale_factor;
             result.polyCoeff = generateTrajectory(path, vel_bc, acc_bc, result.timeAlloc);
         }
@@ -431,7 +432,7 @@ double MinimumSnapTrajectory::computeTrajectoryCost(const MatrixXd& polyCoeff,
     int n_seg = time.size();
     int n_coeff = order_ + 1;
     
-    // 累加每段的snap积分
+    // Accumulate snap integral for each segment
     for (int seg = 0; seg < n_seg; ++seg) {
         MatrixXd Q = computeQ(seg, order_, time(seg), derivative_order_);
         

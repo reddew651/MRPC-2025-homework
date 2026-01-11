@@ -10,16 +10,16 @@
 #include <Eigen/Eigen>
 
 /**
- * RRT* (Rapidly-exploring Random Tree Star) 3D路径规划器
- * 相比传统A*，RRT*具有概率完备性和渐进最优性
- * 特别适合高维空间和复杂障碍物环境
+ * RRT* (Rapidly-exploring Random Tree Star) 3D Path Planner
+ * Compared to traditional A*, RRT* has probabilistic completeness and asymptotic optimality
+ * Particularly suitable for high-dimensional spaces and complex obstacle environments
  */
 
 struct RRTNode {
     Eigen::Vector3d position;
     RRTNode* parent;
     std::vector<RRTNode*> children;
-    double cost;  // 从起点到此节点的路径代价
+    double cost;  // Path cost from start to this node
     
     RRTNode(const Eigen::Vector3d& pos) 
         : position(pos), parent(nullptr), cost(0.0) {}

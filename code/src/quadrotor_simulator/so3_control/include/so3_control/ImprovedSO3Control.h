@@ -5,49 +5,49 @@
 #include <fstream>
 
 /**
- * 改进的SO3控制器
+ * Improved SO3 Controller
  * 
- * 相比原始控制器的改进:
- * 1. 集成完整的姿态控制环 (从simulator移植)
- * 2. 集成角速度控制环
- * 3. 添加积分项和抗饱和
- * 4. 前馈补偿
- * 5. 自适应增益调节
+ * Improvements over the original controller:
+ * 1. Integrated complete attitude control loop (ported from simulator)
+ * 2. Integrated angular velocity control loop
+ * 3. Added integral terms with anti-windup
+ * 4. Feedforward compensation
+ * 5. Adaptive gain adjustment
  */
 
 class ImprovedSO3Control {
 public:
     ImprovedSO3Control();
     
-    // 基本设置
+    // Basic settings
     void setMass(double mass);
     void setGravity(double g);
     void setInertia(const Eigen::Matrix3d& J);
     void setArmLength(double d);
     void setPropellerCoeffs(double kf, double km);
     
-    // 状态更新
+    // State update
     void setPosition(const Eigen::Vector3d& position);
     void setVelocity(const Eigen::Vector3d& velocity);
     void setAcceleration(const Eigen::Vector3d& acc);
     void setOrientation(const Eigen::Quaterniond& orientation);
     void setAngularVelocity(const Eigen::Vector3d& omega);
     
-    // 增益设置
+    // Gain settings
     void setPositionGains(const Eigen::Vector3d& kp, const Eigen::Vector3d& kv, 
                            const Eigen::Vector3d& ki = Eigen::Vector3d::Zero());
     void setAttitudeGains(const Eigen::Vector3d& kR, const Eigen::Vector3d& kOm,
                            const Eigen::Vector3d& kI = Eigen::Vector3d::Zero());
     
-    // 主控制计算
+    // Main control calculation
     void calculateControl(const Eigen::Vector3d& des_pos,
                           const Eigen::Vector3d& des_vel,
                           const Eigen::Vector3d& des_acc,
-                          const Eigen::Vector3d& des_jerk,  // 新增: jerk前馈
+                          const Eigen::Vector3d& des_jerk,  // Added: jerk feedforward
                           double des_yaw,
                           double des_yaw_dot);
     
-    // 简化版本 (兼容旧接口)
+    // Simplified version (compatible with old interface)
     void calculateControl(const Eigen::Vector3d& des_pos,
                           const Eigen::Vector3d& des_vel,
                           const Eigen::Vector3d& des_acc,
@@ -56,72 +56,72 @@ public:
                           const Eigen::Vector3d& kp,
                           const Eigen::Vector3d& kv);
     
-    // 姿态控制环 (新增: 从simulator移植)
+    // Attitude control loop (Added: ported from simulator)
     void calculateAttitudeControl(const Eigen::Quaterniond& des_orientation,
                                    const Eigen::Vector3d& des_omega = Eigen::Vector3d::Zero());
     
-    // 角速度控制环 (新增)
+    // Angular velocity control loop (Added)
     void calculateRateControl(const Eigen::Vector3d& des_omega);
     
-    // 获取控制输出
+    // Get control outputs
     const Eigen::Vector3d& getComputedForce() const;
     const Eigen::Quaterniond& getComputedOrientation() const;
-    const Eigen::Vector3d& getComputedTorque() const;  // 新增
-    double getComputedThrust() const;  // 新增
+    const Eigen::Vector3d& getComputedTorque() const;  // Added
+    double getComputedThrust() const;  // Added
     
-    // 获取电机转速 (新增: 完整控制链)
+    // Get motor RPM (Added: complete control chain)
     Eigen::Vector4d getMotorRPM() const;
     
-    // 重置积分器
+    // Reset integrators
     void resetIntegrators();
     
-    // 调试输出
+    // Debug output
     std::ofstream dataFile;
     std::ofstream dataFile_time;
     
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
 private:
-    // 物理参数
+    // Physical parameters
     double mass_;
     double g_;
     double arm_length_;
-    double kf_;  // 推力系数
-    double km_;  // 力矩系数
-    Eigen::Matrix3d J_;  // 惯性矩阵
+    double kf_;  // Thrust coefficient
+    double km_;  // Torque coefficient
+    Eigen::Matrix3d J_;  // Inertia matrix
     
-    // 当前状态
+    // Current state
     Eigen::Vector3d pos_;
     Eigen::Vector3d vel_;
     Eigen::Vector3d acc_;
     Eigen::Quaterniond orientation_;
-    Eigen::Vector3d omega_;  // 角速度
+    Eigen::Vector3d omega_;  // Angular velocity
     
-    // 位置控制增益
+    // Position control gains
     Eigen::Vector3d kp_;
     Eigen::Vector3d kv_;
     Eigen::Vector3d ki_pos_;
     
-    // 姿态控制增益
+    // Attitude control gains
     Eigen::Vector3d kR_;
     Eigen::Vector3d kOm_;
     Eigen::Vector3d ki_att_;
     
-    // 积分器状态
+    // Integrator states
     Eigen::Vector3d pos_integral_;
     Eigen::Vector3d att_integral_;
     double integral_limit_;
     
-    // 控制输出
+    // Control outputs
     Eigen::Vector3d force_;
     Eigen::Quaterniond des_orientation_;
     Eigen::Vector3d torque_;
     double thrust_;
     
-    // 前馈项
+    // Feedforward terms
     bool use_jerk_feedforward_;
     
-    // 辅助函数
+    // Helper functions
     Eigen::Vector3d computeOrientationError(const Eigen::Matrix3d& R, 
                                              const Eigen::Matrix3d& Rd);
     void limitAngle(double& angle, double limit);

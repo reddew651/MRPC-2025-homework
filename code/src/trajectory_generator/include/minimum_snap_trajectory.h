@@ -6,21 +6,21 @@
 #include <vector>
 
 /**
- * 改进的轨迹生成器 - Minimum Snap优化
+ * Improved Trajectory Generator - Minimum Snap Optimization
  * 
- * 相比原始QP方法的改进:
- * 1. 使用Minimum Snap (最小化jerk/snap的平方积分)代替简单的多项式拟合
- * 2. 支持中间点约束松弛 (通过corridor约束)
- * 3. 更优的时间分配算法 (考虑物理约束)
- * 4. 支持梯度下降优化时间分配
+ * Improvements over the original QP method:
+ * 1. Uses Minimum Snap (minimizing squared integral of jerk/snap) instead of simple polynomial fitting
+ * 2. Supports intermediate point constraint relaxation (through corridor constraints)
+ * 3. Better time allocation algorithm (considering physical constraints)
+ * 4. Supports gradient descent optimization for time allocation
  */
 
 class MinimumSnapTrajectory {
 public:
     struct Constraints {
-        double max_vel;       // 最大速度
-        double max_acc;       // 最大加速度
-        double max_jerk;      // 最大jerk
+        double max_vel;       // Maximum velocity
+        double max_acc;       // Maximum acceleration
+        double max_jerk;      // Maximum jerk
         Constraints() : max_vel(3.0), max_acc(3.0), max_jerk(5.0) {}
     };
     
@@ -32,19 +32,19 @@ public:
     };
 
 private:
-    int order_;              // 多项式阶数 (通常是5或7)
-    int derivative_order_;   // 优化的导数阶数 (4 for minimum snap)
+    int order_;              // Polynomial order (usually 5 or 7)
+    int derivative_order_;   // Order of derivative to optimize (4 for minimum snap)
     Constraints constraints_;
     
-    // 成本矩阵计算
+    // Cost matrix computation
     Eigen::MatrixXd computeQ(int n_seg, int order, double t, int deriv_order);
     Eigen::MatrixXd computeM(int n_seg, int order, const Eigen::VectorXd& time);
     
-    // 辅助函数
+    // Helper functions
     double factorial(int n);
     Eigen::VectorXd timeDerivative(double t, int order, int deriv_order);
     
-    // 时间优化
+    // Time optimization
     Eigen::VectorXd optimizeTimeAllocation(
         const Eigen::MatrixXd& path,
         const Eigen::VectorXd& initial_time,
@@ -55,20 +55,20 @@ public:
     MinimumSnapTrajectory();
     ~MinimumSnapTrajectory();
     
-    // 设置约束
+    // Set constraints
     void setConstraints(const Constraints& constraints);
     void setConstraints(double max_vel, double max_acc, double max_jerk);
     
-    // 设置多项式阶数
+    // Set polynomial order
     void setOrder(int order);
     
     /**
-     * 生成Minimum Snap轨迹
-     * @param path 路径点 (N+1, 3)
-     * @param vel_bc 速度边界条件 (2, 3) [起始, 终止]
-     * @param acc_bc 加速度边界条件 (2, 3) [起始, 终止]
-     * @param time 时间分配 (N,)
-     * @return 多项式系数矩阵 (N, 3*(order+1))
+     * Generate Minimum Snap trajectory
+     * @param path Waypoints (N+1, 3)
+     * @param vel_bc Velocity boundary conditions (2, 3) [start, end]
+     * @param acc_bc Acceleration boundary conditions (2, 3) [start, end]
+     * @param time Time allocation (N,)
+     * @return Polynomial coefficient matrix (N, 3*(order+1))
      */
     Eigen::MatrixXd generateTrajectory(
         const Eigen::MatrixXd& path,
@@ -77,7 +77,7 @@ public:
         const Eigen::VectorXd& time);
     
     /**
-     * 带时间优化的轨迹生成
+     * Trajectory generation with time optimization
      */
     OptimizeResult generateOptimizedTrajectory(
         const Eigen::MatrixXd& path,
@@ -85,7 +85,7 @@ public:
         const Eigen::MatrixXd& acc_bc);
     
     /**
-     * 改进的时间分配 (考虑物理约束)
+     * Improved time allocation (considering physical constraints)
      */
     Eigen::VectorXd allocateTime(
         const Eigen::MatrixXd& path,
@@ -93,29 +93,29 @@ public:
         double max_acc);
     
     /**
-     * 梯形速度规划的时间分配
+     * Trapezoidal velocity profile time allocation
      */
     Eigen::VectorXd trapezoidalTimeAllocation(
         const Eigen::MatrixXd& path,
         double max_vel,
         double max_acc);
     
-    // 轨迹评估
+    // Trajectory evaluation
     Eigen::Vector3d getPosition(const Eigen::MatrixXd& polyCoeff, int seg, double t);
     Eigen::Vector3d getVelocity(const Eigen::MatrixXd& polyCoeff, int seg, double t);
     Eigen::Vector3d getAcceleration(const Eigen::MatrixXd& polyCoeff, int seg, double t);
     Eigen::Vector3d getJerk(const Eigen::MatrixXd& polyCoeff, int seg, double t);
     
-    // 计算轨迹代价
+    // Compute trajectory cost
     double computeTrajectoryCost(const Eigen::MatrixXd& polyCoeff, 
                                   const Eigen::VectorXd& time);
     
-    // 检查物理可行性
+    // Check physical feasibility
     bool checkFeasibility(const Eigen::MatrixXd& polyCoeff,
                           const Eigen::VectorXd& time,
                           double dt = 0.01);
     
-    // 获取最大速度/加速度
+    // Get maximum velocity/acceleration
     double getMaxVelocity(const Eigen::MatrixXd& polyCoeff,
                           const Eigen::VectorXd& time,
                           double dt = 0.01);

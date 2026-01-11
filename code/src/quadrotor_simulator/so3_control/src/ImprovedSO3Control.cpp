@@ -15,23 +15,23 @@ ImprovedSO3Control::ImprovedSO3Control()
 {
     J_ = Eigen::Matrix3d::Identity() * 0.01;
     
-    // 默认增益
+    // Default gains
     kp_ << 25.0, 25.0, 25.0;
     kv_ << 12.0, 12.0, 12.0;
-    ki_pos_ << 0.5, 0.5, 0.5;  // 小的积分增益
+    ki_pos_ << 0.5, 0.5, 0.5;  // Small integral gain
     
     kR_ << 1.5, 1.5, 1.0;
     kOm_ << 0.13, 0.13, 0.1;
     ki_att_ << 0.01, 0.01, 0.01;
     
-    // 初始化状态
+    // Initialize state
     pos_.setZero();
     vel_.setZero();
     acc_.setZero();
     orientation_ = Eigen::Quaterniond::Identity();
     omega_.setZero();
     
-    // 初始化积分器
+    // Initialize integrators
     pos_integral_.setZero();
     att_integral_.setZero();
     
@@ -103,17 +103,17 @@ void ImprovedSO3Control::calculateControl(const Eigen::Vector3d& des_pos,
                                            const Eigen::Vector3d& des_jerk,
                                            double des_yaw,
                                            double des_yaw_dot) {
-    // ============ 位置控制环 (外环) ============
+    // ============ Position Control Loop (Outer Loop) ============
     
-    // 位置和速度误差
+    // Position and velocity error
     Eigen::Vector3d pos_error = des_pos - pos_;
     Eigen::Vector3d vel_error = des_vel - vel_;
     
-    // 更新积分器 (带抗饱和)
-    pos_integral_ += pos_error * 0.01;  // 假设10ms控制周期
+    // Update integrator (with anti-windup)
+    pos_integral_ += pos_error * 0.01;  // Assume 10ms control period
     saturate(pos_integral_, integral_limit_);
     
-    // 自适应加速度误差增益
+    // Adaptive acceleration error gain
     Eigen::Vector3d totalError = pos_error + vel_error + (des_acc - acc_);
     Eigen::Vector3d ka(
         std::abs(totalError[0]) > 3 ? 0 : (std::abs(totalError[0]) * 0.2),
@@ -121,7 +121,7 @@ void ImprovedSO3Control::calculateControl(const Eigen::Vector3d& des_pos,
         std::abs(totalError[2]) > 3 ? 0 : (std::abs(totalError[2]) * 0.2)
     );
     
-    // 计算期望力 (包含前馈)
+    // Calculate desired force (with feedforward)
     force_ = kp_.asDiagonal() * pos_error +
              kv_.asDiagonal() * vel_error +
              ki_pos_.asDiagonal() * pos_integral_ +
@@ -129,21 +129,21 @@ void ImprovedSO3Control::calculateControl(const Eigen::Vector3d& des_pos,
              mass_ * ka.asDiagonal() * (des_acc - acc_) +
              mass_ * g_ * Eigen::Vector3d(0, 0, 1);
     
-    // Jerk前馈 (可选)
+    // Jerk feedforward (optional)
     if (use_jerk_feedforward_ && des_jerk.norm() < 10.0) {
-        // 简化的jerk前馈，改善动态响应
-        force_ += mass_ * 0.02 * des_jerk;  // 小增益的jerk前馈
+        // Simplified jerk feedforward for improved dynamic response
+        force_ += mass_ * 0.02 * des_jerk;  // Small gain jerk feedforward
     }
     
-    // ============ 姿态角限制 (安全限制) ============
-    double max_tilt = M_PI / 4;  // 45度最大倾斜
+    // ============ Attitude Angle Limit (Safety) ============
+    double max_tilt = M_PI / 4;  // 45 degree max tilt
     double c = cos(max_tilt);
     
     Eigen::Vector3d f_horizontal;
     f_horizontal << force_(0), force_(1), 0;
     
     if (Eigen::Vector3d(0, 0, 1).dot(force_.normalized()) < c) {
-        // 需要限制倾斜角
+        // Need to limit tilt angle
         Eigen::Vector3d f_cmd = force_ - mass_ * g_ * Eigen::Vector3d(0, 0, 1);
         double nf = f_cmd.norm();
         double A = c * c * nf * nf - f_cmd(2) * f_cmd(2);
@@ -157,7 +157,7 @@ void ImprovedSO3Control::calculateControl(const Eigen::Vector3d& des_pos,
         }
     }
     
-    // ============ 计算期望姿态 ============
+    // ============ Calculate Desired Orientation ============
     Eigen::Vector3d b1c, b2c, b3c;
     Eigen::Vector3d b1d(cos(des_yaw), sin(des_yaw), 0);
     
@@ -175,14 +175,14 @@ void ImprovedSO3Control::calculateControl(const Eigen::Vector3d& des_pos,
     
     des_orientation_ = Eigen::Quaterniond(R_des);
     
-    // 计算推力标量
+    // Calculate thrust scalar
     thrust_ = force_.dot(orientation_.toRotationMatrix().col(2));
     thrust_ = std::max(0.0, thrust_);
     
-    // ============ 姿态控制环 (内环) ============
+    // ============ Attitude Control Loop (Inner Loop) ============
     calculateAttitudeControl(des_orientation_, Eigen::Vector3d(0, 0, des_yaw_dot));
     
-    // 调试记录
+    // Debug logging
     ros::Time currentTime = ros::Time::now();
     if (!dataFile.is_open()) {
         dataFile.open("/home/stuwork/MRPC-2025-homework/code/src/quadrotor_simulator/so3_control/src/control_data.txt", 
@@ -216,35 +216,36 @@ void ImprovedSO3Control::calculateControl(const Eigen::Vector3d& des_pos,
 
 void ImprovedSO3Control::calculateAttitudeControl(const Eigen::Quaterniond& des_orientation,
                                                     const Eigen::Vector3d& des_omega) {
-    // 从simulator移植的姿态控制逻辑
+    // Attitude control logic ported from simulator
     Eigen::Matrix3d R = orientation_.toRotationMatrix();
     Eigen::Matrix3d Rd = des_orientation.toRotationMatrix();
     
-    // 计算姿态误差 (SO3上的误差)
+    // Calculate attitude error (error on SO3)
     Eigen::Vector3d eR = computeOrientationError(R, Rd);
     
-    // 角速度误差
+    // Angular velocity error
     Eigen::Vector3d eOm = omega_ - des_omega;
     
-    // 更新姿态积分器
+    // Update attitude integrator
     att_integral_ += eR * 0.01;
     saturate(att_integral_, 1.0);
     
-    // 计算力矩 (基于simulator中的getControl)
+    // Calculate torque (based on simulator's getControl)
     // M = -kR * eR - kOm * eOm + omega x (J * omega)
     Eigen::Vector3d gyroscopic = omega_.cross(J_ * omega_);
     
-    torque_ = -kR_.asDiagonal() * eR 
-              - kOm_.asDiagonal() * eOm 
-              - ki_att_.asDiagonal() * att_integral_
-              + gyroscopic;
+    Eigen::Vector3d kR_eR = kR_.asDiagonal() * eR;
+    Eigen::Vector3d kOm_eOm = kOm_.asDiagonal() * eOm;
+    Eigen::Vector3d kI_int = ki_att_.asDiagonal() * att_integral_;
+    
+    torque_ = -kR_eR - kOm_eOm - kI_int + gyroscopic;
 }
 
 void ImprovedSO3Control::calculateRateControl(const Eigen::Vector3d& des_omega) {
-    // 简单的角速度P控制
+    // Simple angular velocity P control
     Eigen::Vector3d omega_error = des_omega - omega_;
     
-    // 使用姿态增益的一部分
+    // Use portion of attitude gains
     torque_ = kOm_.asDiagonal() * omega_error + omega_.cross(J_ * omega_);
 }
 
@@ -276,12 +277,12 @@ double ImprovedSO3Control::getComputedThrust() const {
 }
 
 Eigen::Vector4d ImprovedSO3Control::getMotorRPM() const {
-    // 从推力和力矩计算电机转速
-    // 这是从simulator中移植的混控逻辑
+    // Calculate motor RPM from thrust and torque
+    // This is the mixer logic ported from simulator
     
     double d = arm_length_;
     
-    // 混控矩阵求解 (参考quadrotor_simulator_so3.cpp)
+    // Mixer matrix solution (reference: quadrotor_simulator_so3.cpp)
     Eigen::Vector4d w_sq;
     w_sq(0) = thrust_ / (4 * kf_) - torque_(1) / (2 * d * kf_) + torque_(2) / (4 * km_);
     w_sq(1) = thrust_ / (4 * kf_) + torque_(1) / (2 * d * kf_) + torque_(2) / (4 * km_);

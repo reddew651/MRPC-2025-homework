@@ -1,13 +1,13 @@
 /**
  * trajectory_generator_improved.cpp
  * 
- * 改进版轨迹生成节点 - 可以通过launch参数选择不同的规划和优化算法
+ * Improved Trajectory Generator Node
  * 
- * 新增功能:
- * 1. 支持 JPS/A*/RRT* 前端规划器切换
- * 2. 支持 Minimum Snap 轨迹优化
- * 3. 改进的时间分配算法
- * 4. 更好的安全检查和路径平滑
+ * Features:
+ * 1. Support JPS/A*/RRT* front-end planner switching
+ * 2. Support Minimum Snap trajectory optimization
+ * 3. Improved time allocation algorithm
+ * 4. Better safety check and path smoothing
  */
 
 #include <algorithm>
@@ -30,19 +30,19 @@
 #include <visualization_msgs/Marker.h>
 #include <visualization_msgs/MarkerArray.h>
 
-// 原有头文件
+// Original header files
 #include "Astar_searcher.h"
 #include "backward.hpp"
 #include "trajectory_generator_waypoint.h"
 
-// 新增头文件
+// New header files
 #include "rrt_star_searcher.h"
 #include "minimum_snap_trajectory.h"
 
 using namespace std;
 using namespace Eigen;
 
-// ==================== 规划器选择 ====================
+// ==================== Planner Selection ====================
 enum PlannerType {
     PLANNER_ASTAR = 0,
     PLANNER_JPS = 1,
@@ -54,25 +54,25 @@ enum TrajectoryOptType {
     TRAJ_MINIMUM_SNAP = 1
 };
 
-// ==================== 全局变量 ====================
+// ==================== Global Variables ====================
 PlannerType planner_type_ = PLANNER_JPS;
 TrajectoryOptType traj_opt_type_ = TRAJ_MINIMUM_SNAP;
 
-// 原有规划器
+// Original planners
 TrajectoryGeneratorWaypoint *_trajGene = new TrajectoryGeneratorWaypoint();
 Astarpath *_astar_path_finder = new Astarpath();
 
-// 新增规划器
+// New planners
 RRTStarSearcher *_rrt_path_finder = nullptr;
 MinimumSnapTrajectory *_minsnap_traj = nullptr;
 
-// 地图参数
+// Map parameters
 double _resolution, _inv_resolution, _path_resolution;
 double _x_size, _y_size, _z_size;
 Vector3d _map_lower, _map_upper;
 int _max_x_id, _max_y_id, _max_z_id;
 
-// 规划参数
+// Planning parameters
 double _vis_traj_width;
 double _Vel, _Acc;
 int _dev_order, _min_order;
@@ -80,9 +80,9 @@ int _dev_order, _min_order;
 // ROS
 ros::Subscriber _map_sub, _pts_sub, _odom_sub;
 ros::Publisher _traj_vis_pub, _traj_before_vis_pub, _traj_pub, _path_vis_pub, _astar_path_vis_pub;
-ros::Publisher _rrt_tree_pub;  // 新增: RRT树可视化
+ros::Publisher _rrt_tree_pub;  // Added: RRT tree visualization
 
-// 状态
+// State
 Vector3d odom_pt, odom_vel, start_pt, target_pt, start_vel;
 int _poly_num1D;
 MatrixXd _polyCoeff;
@@ -92,7 +92,7 @@ ros::Time time_traj_start;
 bool has_odom = false;
 bool has_target = false;
 
-// 状态机
+// State machine
 enum STATE { INIT, WAIT_TARGET, GEN_NEW_TRAJ, EXEC_TRAJ, REPLAN_TRAJ, EMER_STOP };
 STATE exec_state;
 double no_replan_thresh, replan_thresh;
@@ -100,7 +100,7 @@ ros::Timer _exec_timer;
 ros::Timer _safety_timer_;
 bool cracked = false;
 
-// ==================== 函数声明 ====================
+// ==================== Function Declarations ====================
 void changeState(STATE new_state, string pos_call);
 void printState();
 void visTrajectory(MatrixXd polyCoeff, VectorXd time);
@@ -113,7 +113,7 @@ Vector3d getPos(double t_cur);
 Vector3d getVel(double t_cur);
 void visRRTTree(const vector<pair<Vector3d, Vector3d>>& edges);
 
-// ==================== 回调函数 ====================
+// ==================== Callbacks ====================
 void rcvOdomCallback(const nav_msgs::Odometry::ConstPtr &odom) {
     odom_pt(0) = odom->pose.pose.position.x;
     odom_pt(1) = odom->pose.pose.position.y;
@@ -232,13 +232,13 @@ void execCallback(const ros::TimerEvent &e) {
     }
 }
 
-// ==================== 核心规划函数 ====================
+// ==================== Core Planning Functions ====================
 bool trajGeneration() {
     ros::Time start_time = ros::Time::now();
     vector<Vector3d> grid_path;
     bool search_success = false;
     
-    // 根据选择的规划器进行路径搜索
+    // Perform path search based on selected planner
     switch (planner_type_) {
         case PLANNER_ASTAR:
             ROS_INFO("[Planner] Using A* search");
@@ -264,9 +264,9 @@ bool trajGeneration() {
                 search_success = _rrt_path_finder->search(start_pt, target_pt);
                 if (search_success) {
                     grid_path = _rrt_path_finder->getPath();
-                    // 路径平滑
+                    // Path smoothing
                     grid_path = _rrt_path_finder->smoothPath(grid_path);
-                    // 可视化RRT树
+                    // Visualize RRT tree
                     visRRTTree(_rrt_path_finder->getTreeEdges());
                 }
             }
@@ -282,13 +282,13 @@ bool trajGeneration() {
     ROS_INFO("[Planner] Path found with %zu waypoints in %.3f s", 
              grid_path.size(), (search_end - start_time).toSec());
     
-    // 可视化原始路径
+    // Visualize original path
     MatrixXd path(int(grid_path.size()), 3);
     for (int k = 0; k < int(grid_path.size()); k++) {
         path.row(k) = grid_path[k].transpose();
     }
     
-    // 路径简化 (如果使用A*/JPS)
+    // Path simplification (if using A*/JPS)
     if (planner_type_ != PLANNER_RRT_STAR) {
         grid_path = _astar_path_finder->pathSimplify(grid_path, _path_resolution);
         path = MatrixXd::Zero(int(grid_path.size()), 3);
@@ -297,11 +297,11 @@ bool trajGeneration() {
         }
     }
     
-    // 轨迹优化
+    // Trajectory optimization
     trajOptimization(path);
     time_duration = _polyTime.sum();
     
-    // 发布轨迹
+    // Publish trajectory
     trajPublish(_polyCoeff, _polyTime);
     time_traj_start = ros::Time::now();
     
@@ -317,14 +317,14 @@ void trajOptimization(Eigen::MatrixXd path) {
     MatrixXd acc = MatrixXd::Zero(2, 3);
     vel.row(0) = start_vel.transpose();
     
-    // 根据选择的优化器进行轨迹优化
+    // Perform trajectory optimization based on selected optimizer
     if (traj_opt_type_ == TRAJ_MINIMUM_SNAP && _minsnap_traj != nullptr) {
         ROS_INFO("[Trajectory] Using Minimum Snap optimization");
         
-        // 使用改进的时间分配
+        // Use improved time allocation
         _polyTime = _minsnap_traj->trapezoidalTimeAllocation(path, _Vel, _Acc);
         
-        // 生成优化轨迹
+        // Generate optimized trajectory
         auto result = _minsnap_traj->generateOptimizedTrajectory(path, vel, acc);
         
         if (result.success) {
@@ -345,7 +345,7 @@ void trajOptimization(Eigen::MatrixXd path) {
         _polyCoeff = _trajGene->PolyQPGeneration(_dev_order, path, vel, acc, _polyTime);
     }
     
-    // 安全检查和重新优化
+    // Safety check and re-optimization
     int unsafe_segment = _astar_path_finder->safeCheck(_polyCoeff, _polyTime);
     MatrixXd repath;
     bool regen_flag = false;
@@ -377,12 +377,12 @@ void trajOptimization(Eigen::MatrixXd path) {
         ROS_INFO("[Safety] Safe trajectory regenerated");
     }
     
-    // 可视化
+    // Visualization
     visPath(path);
     visTrajectory(_polyCoeff, _polyTime);
 }
 
-// ==================== 辅助函数 ====================
+// ==================== Helper Functions ====================
 VectorXd timeAllocation(MatrixXd Path) {
     VectorXd time(Path.rows() - 1);
     const double t = _Vel / _Acc;
@@ -568,15 +568,15 @@ void issafe(const ros::TimerEvent &e) {
     }
 }
 
-// ==================== 主函数 ====================
+// ==================== Main Function ====================
 int main(int argc, char **argv) {
     ros::init(argc, argv, "trajectory_generator_improved");
     ros::NodeHandle nh("~");
     
-    // 读取参数
+    // Read parameters
     nh.param("planning/vel", _Vel, 3.0);
     nh.param("planning/acc", _Acc, 3.0);
-    nh.param("planning/dev_order", _dev_order, 4);  // 4阶用于minimum snap
+    nh.param("planning/dev_order", _dev_order, 4);  // 4th order for minimum snap
     nh.param("planning/min_order", _min_order, 3);
     nh.param("vis/vis_traj_width", _vis_traj_width, 0.15);
     nh.param("map/resolution", _resolution, 0.2);
@@ -587,9 +587,9 @@ int main(int argc, char **argv) {
     nh.param("replanning/thresh_replan", replan_thresh, -1.0);
     nh.param("replanning/thresh_no_replan", no_replan_thresh, -1.0);
     
-    // 新增参数: 规划器选择
-    int planner_choice = 1;  // 默认JPS
-    int traj_opt_choice = 1;  // 默认Minimum Snap
+    // New parameters: planner selection
+    int planner_choice = 1;  // Default JPS
+    int traj_opt_choice = 1;  // Default Minimum Snap
     nh.param("planning/planner_type", planner_choice, 1);
     nh.param("planning/traj_opt_type", traj_opt_choice, 1);
     
@@ -607,7 +607,7 @@ int main(int argc, char **argv) {
     _poly_num1D = 2 * _dev_order;
     exec_state = INIT;
     
-    // 初始化规划器
+    // Initialize planners
     _map_lower << -_x_size / 2.0, -_y_size / 2.0, 0.0;
     _map_upper << +_x_size / 2.0, +_y_size / 2.0, _z_size;
     _inv_resolution = 1.0 / _resolution;
@@ -619,32 +619,32 @@ int main(int argc, char **argv) {
     _astar_path_finder->begin_grid_map(_resolution, _map_lower, _map_upper,
                                        _max_x_id, _max_y_id, _max_z_id);
     
-    // 初始化RRT*规划器
+    // Initialize RRT* planner
     if (planner_type_ == PLANNER_RRT_STAR) {
         _rrt_path_finder = new RRTStarSearcher();
         _rrt_path_finder->initGridMap(_resolution, _map_lower, _map_upper,
                                       _max_x_id, _max_y_id, _max_z_id);
         _rrt_path_finder->setParams(0.5, 0.5, 1.5, 5000, 0.15);
-        // 共享占据地图数据
-        // 注意: 需要在Astarpath中添加getData()方法或修改RRT*使用相同的障碍检测
+        // Share occupancy map data
+        // Note: Need to add getData() method in Astarpath or modify RRT* to use same obstacle detection
     }
     
-    // 初始化Minimum Snap优化器
+    // Initialize Minimum Snap optimizer
     if (traj_opt_type_ == TRAJ_MINIMUM_SNAP) {
         _minsnap_traj = new MinimumSnapTrajectory();
         _minsnap_traj->setConstraints(_Vel, _Acc, 5.0);
     }
     
-    // 创建定时器
+    // Create timers
     _exec_timer = nh.createTimer(ros::Duration(0.01), execCallback);
     _safety_timer_ = nh.createTimer(ros::Duration(0.05), issafe);
     
-    // 订阅者
+    // Subscribers
     _odom_sub = nh.subscribe("odom", 10, rcvOdomCallback);
     _map_sub = nh.subscribe("local_pointcloud", 1, rcvPointCloudCallBack);
     _pts_sub = nh.subscribe("waypoints", 1, rcvWaypointsCallBack);
     
-    // 发布者
+    // Publishers
     _traj_pub = nh.advertise<quadrotor_msgs::PolynomialTrajectory>("trajectory", 50);
     _traj_vis_pub = nh.advertise<visualization_msgs::Marker>("vis_trajectory", 1);
     _traj_before_vis_pub = nh.advertise<visualization_msgs::Marker>("vis_trajectory_before", 1);
@@ -658,7 +658,7 @@ int main(int argc, char **argv) {
         rate.sleep();
     }
     
-    // 清理
+    // Cleanup
     delete _astar_path_finder;
     delete _trajGene;
     if (_rrt_path_finder) delete _rrt_path_finder;
