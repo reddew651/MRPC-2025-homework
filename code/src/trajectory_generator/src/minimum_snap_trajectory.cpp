@@ -69,19 +69,42 @@ MatrixXd MinimumSnapTrajectory::generateTrajectory(
     const VectorXd& time) {
     
     int n_seg = time.size();        // Number of segments
-    int n_coeff = order_ + 1;       // Number of coefficients per segment
+    int n_coeff = order_ + 1;       // Number of coefficients per segment (8 for 7th order)
     int deriv = derivative_order_;  // Order of derivative to optimize
+    
+    // Safety check: need at least 1 segment
+    if (n_seg < 1 || path.rows() < 2) {
+        ROS_WARN("[MinSnap] Invalid path: n_seg=%d, path.rows=%ld", n_seg, path.rows());
+        // Return empty matrix with correct dimensions to indicate failure
+        return MatrixXd::Zero(std::max(1, n_seg), 3 * n_coeff);
+    }
+    
+    // Verify path.rows() == n_seg + 1 (n waypoints define n-1 segments)
+    if (path.rows() != n_seg + 1) {
+        ROS_WARN("[MinSnap] Path/time mismatch: path.rows=%ld, expected %d (n_seg+1)", 
+                 path.rows(), n_seg + 1);
+        return MatrixXd::Zero(n_seg, 3 * n_coeff);
+    }
     
     // Each segment has n_coeff unknowns, total n_seg * n_coeff
     int dim = n_seg * n_coeff;
+    
+    // Calculate required number of constraints
+    // Start: 4 (pos, vel, acc, jerk)
+    // End: 4 (pos, vel, acc, jerk)
+    // Per intermediate waypoint: 7 continuity constraints (for 7th order)
+    int n_constraints = 8 + (n_seg - 1) * 7;
+    
+    // Make sure we have enough equations (use larger matrix if needed)
+    int matrix_dim = std::max(dim, n_constraints);
     
     MatrixXd polyCoeff = MatrixXd::Zero(n_seg, 3 * n_coeff);
     
     // Solve for each dimension separately
     for (int d = 0; d < 3; ++d) {
         // Build constraint matrix and cost matrix
-        MatrixXd A = MatrixXd::Zero(dim, dim);
-        VectorXd b = VectorXd::Zero(dim);
+        MatrixXd A = MatrixXd::Zero(matrix_dim, dim);
+        VectorXd b = VectorXd::Zero(matrix_dim);
         MatrixXd Q = MatrixXd::Zero(dim, dim);
         
         int row = 0;
@@ -211,8 +234,12 @@ MatrixXd MinimumSnapTrajectory::generateTrajectory(
             Q.block(seg * n_coeff, seg * n_coeff, n_coeff, n_coeff) = Qseg;
         }
         
-        // Solve using pseudo-inverse (if number of constraint equations equals unknowns)
-        VectorXd coeffs = A.colPivHouseholderQr().solve(b);
+        // Truncate A and b to actual number of constraints used
+        MatrixXd A_used = A.topRows(row);
+        VectorXd b_used = b.head(row);
+        
+        // Solve using least squares (handles overdetermined systems)
+        VectorXd coeffs = A_used.colPivHouseholderQr().solve(b_used);
         
         // Fill coefficient matrix
         for (int seg = 0; seg < n_seg; ++seg) {

@@ -313,6 +313,12 @@ bool trajGeneration() {
 }
 
 void trajOptimization(Eigen::MatrixXd path) {
+    // Safety check: need at least 2 waypoints
+    if (path.rows() < 2) {
+        ROS_ERROR("[Trajectory] Invalid path: need at least 2 waypoints, got %ld", path.rows());
+        return;
+    }
+    
     MatrixXd vel = MatrixXd::Zero(2, 3);
     MatrixXd acc = MatrixXd::Zero(2, 3);
     vel.row(0) = start_vel.transpose();
@@ -327,7 +333,12 @@ void trajOptimization(Eigen::MatrixXd path) {
         // Generate optimized trajectory
         auto result = _minsnap_traj->generateOptimizedTrajectory(path, vel, acc);
         
-        if (result.success) {
+        // Validate result dimensions
+        bool valid_result = result.success && 
+                            result.polyCoeff.rows() == result.timeAlloc.size() &&
+                            result.polyCoeff.cols() == _poly_num1D * 3;
+        
+        if (valid_result) {
             _polyCoeff = result.polyCoeff;
             _polyTime = result.timeAlloc;
             ROS_INFO("[Trajectory] Minimum Snap: cost = %.3f, max_vel = %.2f m/s, max_acc = %.2f m/s^2",
@@ -335,7 +346,8 @@ void trajOptimization(Eigen::MatrixXd path) {
                      _minsnap_traj->getMaxVelocity(_polyCoeff, _polyTime),
                      _minsnap_traj->getMaxAcceleration(_polyCoeff, _polyTime));
         } else {
-            ROS_WARN("[Trajectory] Minimum Snap failed, falling back to QP");
+            ROS_WARN("[Trajectory] Minimum Snap failed or invalid dimensions (rows=%ld, time=%ld, cols=%ld, expected_cols=%d), falling back to QP",
+                     result.polyCoeff.rows(), result.timeAlloc.size(), result.polyCoeff.cols(), _poly_num1D * 3);
             _polyTime = timeAllocation(path);
             _polyCoeff = _trajGene->PolyQPGeneration(_dev_order, path, vel, acc, _polyTime);
         }
@@ -349,19 +361,38 @@ void trajOptimization(Eigen::MatrixXd path) {
     int unsafe_segment = _astar_path_finder->safeCheck(_polyCoeff, _polyTime);
     MatrixXd repath;
     bool regen_flag = false;
+    int max_regen_iter = 20;  // Prevent infinite loop
+    int regen_iter = 0;
     
-    while (unsafe_segment != -1) {
+    while (unsafe_segment != -1 && regen_iter < max_regen_iter) {
         regen_flag = true;
+        regen_iter++;
+        
+        // Validate unsafe_segment is within bounds
+        if (unsafe_segment < 0 || unsafe_segment >= path.rows() - 1) {
+            ROS_WARN("[Safety] Invalid unsafe_segment=%d for path with %ld rows", unsafe_segment, path.rows());
+            break;
+        }
+        
         int count = 0;
         repath = MatrixXd::Zero(path.rows() + 1, path.cols());
         
-        while (count <= unsafe_segment) {
+        // Copy points up to and including the unsafe segment start
+        while (count <= unsafe_segment && count < path.rows()) {
             repath.row(count) = path.row(count);
             count++;
         }
-        repath.row(count) = (path.row(count) + path.row(count - 1)) / 2;
-        ROS_INFO("[Safety] Adding intermediate point to avoid collision");
         
+        // Insert midpoint (with bounds check)
+        if (count < path.rows() && count > 0) {
+            repath.row(count) = (path.row(count) + path.row(count - 1)) / 2;
+            ROS_INFO("[Safety] Adding intermediate point at segment %d to avoid collision", unsafe_segment);
+        } else {
+            ROS_WARN("[Safety] Cannot insert midpoint, count=%d, path.rows=%ld", count, path.rows());
+            break;
+        }
+        
+        // Copy remaining points
         while (count < path.rows()) {
             repath.row(count + 1) = path.row(count);
             count++;
@@ -370,7 +401,19 @@ void trajOptimization(Eigen::MatrixXd path) {
         
         _polyTime = timeAllocation(path);
         _polyCoeff = _trajGene->PolyQPGeneration(_dev_order, path, vel, acc, _polyTime);
+        
+        // Validate generated trajectory dimensions
+        if (_polyCoeff.rows() != _polyTime.size()) {
+            ROS_ERROR("[Safety] Dimension mismatch after regeneration: polyCoeff.rows=%ld, polyTime.size=%ld",
+                      _polyCoeff.rows(), _polyTime.size());
+            break;
+        }
+        
         unsafe_segment = _astar_path_finder->safeCheck(_polyCoeff, _polyTime);
+    }
+    
+    if (regen_iter >= max_regen_iter) {
+        ROS_WARN("[Safety] Max regeneration iterations reached");
     }
     
     if (regen_flag) {
@@ -457,6 +500,11 @@ void visTrajectory(MatrixXd polyCoeff, VectorXd time) {
     _traj_vis.color.b = 1.0;
     
     for (int i = 0; i < time.size(); i++) {
+        // Bounds check to prevent index out of range
+        if (i >= polyCoeff.rows()) {
+            ROS_WARN("[visTrajectory] Segment index %d out of bounds (rows=%ld)", i, polyCoeff.rows());
+            break;
+        }
         for (double t = 0.0; t < time(i); t += 0.01) {
             Vector3d pos = _trajGene->getPosPoly(polyCoeff, i, t);
             geometry_msgs::Point pt;
@@ -493,8 +541,18 @@ void visPath(MatrixXd nodes) {
 }
 
 Vector3d getPos(double t_cur) {
+    // Safety check: trajectory must be valid
+    if (_polyCoeff.rows() == 0 || _polyTime.size() == 0) {
+        return Vector3d::Zero();
+    }
+    
     double time = 0;
     for (int i = 0; i < _polyTime.size(); i++) {
+        // Bounds check
+        if (i >= _polyCoeff.rows()) {
+            ROS_WARN_THROTTLE(1.0, "[getPos] Segment index %d out of bounds (rows=%ld)", i, _polyCoeff.rows());
+            return Vector3d::Zero();
+        }
         for (double t = 0.0; t < _polyTime(i); t += 0.01) {
             time += 0.01;
             if (time > t_cur) {
@@ -506,8 +564,18 @@ Vector3d getPos(double t_cur) {
 }
 
 Vector3d getVel(double t_cur) {
+    // Safety check: trajectory must be valid
+    if (_polyCoeff.rows() == 0 || _polyTime.size() == 0) {
+        return Vector3d::Zero();
+    }
+    
     double time = 0;
     for (int i = 0; i < _polyTime.size(); i++) {
+        // Bounds check
+        if (i >= _polyCoeff.rows()) {
+            ROS_WARN_THROTTLE(1.0, "[getVel] Segment index %d out of bounds (rows=%ld)", i, _polyCoeff.rows());
+            return Vector3d::Zero();
+        }
         for (double t = 0.0; t < _polyTime(i); t += 0.01) {
             time += 0.01;
             if (time > t_cur) {
@@ -524,6 +592,13 @@ void trajPublish(MatrixXd polyCoeff, VectorXd time) {
         return;
     }
     
+    // Safety check: verify dimensions match
+    if (polyCoeff.rows() != time.size()) {
+        ROS_ERROR("[trajectory_generator] Dimension mismatch: polyCoeff.rows=%ld, time.size=%ld", 
+                  polyCoeff.rows(), time.size());
+        return;
+    }
+    
     static int count = 1;
     quadrotor_msgs::PolynomialTrajectory traj_msg;
     
@@ -536,6 +611,13 @@ void trajPublish(MatrixXd polyCoeff, VectorXd time) {
     traj_msg.num_segment = time.size();
     
     unsigned int poly_number = traj_msg.num_order + 1;
+    
+    // Safety check for coefficient matrix width
+    if (polyCoeff.cols() < 3 * (int)poly_number) {
+        ROS_ERROR("[trajectory_generator] Coefficient matrix too narrow: cols=%ld, need=%u", 
+                  polyCoeff.cols(), 3 * poly_number);
+        return;
+    }
     
     Vector3d initialVel = _trajGene->getVelPoly(polyCoeff, 0, 0);
     Vector3d finalVel = _trajGene->getVelPoly(polyCoeff, traj_msg.num_segment - 1, time(traj_msg.num_segment - 1));
