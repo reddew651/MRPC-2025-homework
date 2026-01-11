@@ -4,7 +4,7 @@
  * Improved Trajectory Generator Node
  * 
  * Features:
- * 1. Support JPS/A*/RRT* front-end planner switching
+ * 1. Support JPS, A-star, RRT-star front-end planner switching
  * 2. Support Minimum Snap trajectory optimization
  * 3. Improved time allocation algorithm
  * 4. Better safety check and path smoothing
