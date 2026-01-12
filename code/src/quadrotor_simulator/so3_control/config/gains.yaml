@@ -1,6 +1,6 @@
-# Highly optimized gains for minimum RMSE
+# MAXIMUM gains for MINIMUM RMSE
 gains:
-  pos: {x: 15.0, y: 15.0, z: 18.0}
-  vel: {x: 8.0, y: 8.0, z: 10.0}
-  rot: {x: 4.0, y: 4.0, z: 1.2}
-  ang: {x: 0.5, y: 0.5, z: 0.15}
+  pos: {x: 50.0, y: 50.0, z: 55.0}
+  vel: {x: 20.0, y: 20.0, z: 22.0}
+  rot: {x: 5.0, y: 5.0, z: 1.5}
+  ang: {x: 0.6, y: 0.6, z: 0.2}

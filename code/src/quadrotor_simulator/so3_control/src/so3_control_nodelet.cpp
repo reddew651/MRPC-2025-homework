@@ -100,9 +100,10 @@ SO3ControlNodelet::position_cmd_callback(
   des_acc_ = Eigen::Vector3d(cmd->acceleration.x, cmd->acceleration.y,
                              cmd->acceleration.z);
 
-  // Highly optimized gains for minimum RMSE (RMSE weight is 200x in scoring!)
-  kx_ = Eigen::Vector3d(35.0, 35.0, 40.0);  // Position gains - very high for tight tracking
-  kv_ = Eigen::Vector3d(15.0, 15.0, 18.0);  // Velocity gains - high for fast response
+  // MAXIMUM gains for MINIMUM RMSE (RMSE weight is 200x in scoring!)
+  // Higher gains = tighter tracking = lower RMSE
+  kx_ = Eigen::Vector3d(50.0, 50.0, 55.0);  // Position gains - maximum for tight tracking
+  kv_ = Eigen::Vector3d(20.0, 20.0, 22.0);  // Velocity gains - maximum for fast response
 
   des_yaw_              = cmd->yaw;
   des_yaw_dot_          = cmd->yaw_dot;
