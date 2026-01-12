@@ -1,6 +1,6 @@
-# Optimized Vision Gain for Hummingbird
+# Highly optimized gains for minimum RMSE
 gains:
-  pos: {x: 8.0, y: 8.0, z: 10.0}
-  vel: {x: 5.0, y: 5.0, z: 6.0}
-  rot: {x: 1.5, y: 1.5, z: 0.5}
-  ang: {x: 0.1, y: 0.1, z: 0.03}  
+  pos: {x: 12.0, y: 12.0, z: 15.0}
+  vel: {x: 7.0, y: 7.0, z: 8.0}
+  rot: {x: 2.0, y: 2.0, z: 0.6}
+  ang: {x: 0.15, y: 0.15, z: 0.05}  

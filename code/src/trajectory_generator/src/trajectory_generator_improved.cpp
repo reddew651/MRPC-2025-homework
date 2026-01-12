@@ -288,14 +288,18 @@ bool trajGeneration() {
         path.row(k) = grid_path[k].transpose();
     }
     
-    // Path simplification (if using A*/JPS)
+    // Aggressive path simplification to reduce trajectory length
     if (planner_type_ != PLANNER_RRT_STAR) {
-        grid_path = _astar_path_finder->pathSimplify(grid_path, _path_resolution);
+        // Use larger resolution for more aggressive simplification
+        double simplify_resolution = _path_resolution * 1.5;
+        grid_path = _astar_path_finder->pathSimplify(grid_path, simplify_resolution);
         path = MatrixXd::Zero(int(grid_path.size()), 3);
         for (int k = 0; k < int(grid_path.size()); k++) {
             path.row(k) = grid_path[k].transpose();
         }
     }
+    
+    ROS_INFO("[Planner] Simplified path has %ld waypoints", path.rows());
     
     // Trajectory optimization
     trajOptimization(path);
@@ -445,11 +449,12 @@ VectorXd timeAllocation(MatrixXd Path) {
         MatrixXd piece = Path.row(i + 1) - Path.row(i);
         double dist = piece.norm();
         
-        // Adjust velocity based on turning angle (slow down at turns)
+        // Adjust velocity based on turning angle (mild slowdown at turns)
         double angle_factor = 1.0;
-        if (i < int(turn_angles.size())) {
-            angle_factor = 1.0 - 0.4 * turn_angles[i] / M_PI;
-            angle_factor = std::max(0.4, angle_factor);
+        if (i < int(turn_angles.size()) && i > 0) {
+            // Only slow down 20% at sharp turns (was 40%)
+            angle_factor = 1.0 - 0.2 * turn_angles[i] / M_PI;
+            angle_factor = std::max(0.6, angle_factor);  // Minimum 60% speed (was 40%)
         }
         double adjusted_vel = _Vel * angle_factor;
         double adjusted_t = adjusted_vel / _Acc;
@@ -461,11 +466,11 @@ VectorXd timeAllocation(MatrixXd Path) {
             time(i) = 2.0 * adjusted_t + (dist - 2.0 * adjusted_d) / adjusted_vel;
         }
         
-        // Add 15% safety margin for better tracking
-        time(i) *= 1.15;
+        // Add 8% safety margin (reduced from 15%)
+        time(i) *= 1.08;
         
         // Ensure minimum segment time
-        time(i) = std::max(time(i), 0.3);
+        time(i) = std::max(time(i), 0.25);
     }
     return time;
 }
