@@ -466,11 +466,11 @@ VectorXd timeAllocation(MatrixXd Path) {
             time(i) = 2.0 * adjusted_t + (dist - 2.0 * adjusted_d) / adjusted_vel;
         }
         
-        // Add 8% safety margin (reduced from 15%)
-        time(i) *= 1.08;
+        // Add 12% safety margin for better tracking (RMSE is 200x weight!)
+        time(i) *= 1.12;
         
         // Ensure minimum segment time
-        time(i) = std::max(time(i), 0.25);
+        time(i) = std::max(time(i), 0.28);
     }
     return time;
 }
