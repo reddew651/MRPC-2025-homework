@@ -336,7 +336,11 @@ VectorXd MinimumSnapTrajectory::trapezoidalTimeAllocation(
             time(i) = 2 * t_acc + t_const;
         }
         
-        time(i) = max(time(i), 0.3);
+        // Add 15% safety margin for better tracking accuracy
+        time(i) *= 1.15;
+        
+        // Ensure minimum segment time
+        time(i) = max(time(i), 0.35);
     }
     
     return time;

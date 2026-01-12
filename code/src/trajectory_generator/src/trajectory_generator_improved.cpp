@@ -431,15 +431,41 @@ VectorXd timeAllocation(MatrixXd Path) {
     const double t = _Vel / _Acc;
     const double d = 0.5 * _Acc * t * t;
     
+    // Calculate turning angles for velocity adjustment
+    std::vector<double> turn_angles(Path.rows() - 1, 0.0);
+    for (int i = 1; i < int(Path.rows()) - 1; i++) {
+        Vector3d v1 = (Path.row(i) - Path.row(i-1)).transpose();
+        Vector3d v2 = (Path.row(i+1) - Path.row(i)).transpose();
+        double cos_angle = v1.dot(v2) / (v1.norm() * v2.norm() + 1e-6);
+        cos_angle = std::max(-1.0, std::min(1.0, cos_angle));
+        turn_angles[i] = acos(cos_angle);
+    }
+    
     for (int i = 0; i < int(time.size()); i++) {
         MatrixXd piece = Path.row(i + 1) - Path.row(i);
         double dist = piece.norm();
         
-        if (dist < d + d) {
+        // Adjust velocity based on turning angle (slow down at turns)
+        double angle_factor = 1.0;
+        if (i < int(turn_angles.size())) {
+            angle_factor = 1.0 - 0.4 * turn_angles[i] / M_PI;
+            angle_factor = std::max(0.4, angle_factor);
+        }
+        double adjusted_vel = _Vel * angle_factor;
+        double adjusted_t = adjusted_vel / _Acc;
+        double adjusted_d = 0.5 * _Acc * adjusted_t * adjusted_t;
+        
+        if (dist < 2.0 * adjusted_d) {
             time(i) = 2.0 * sqrt(dist / _Acc);
         } else {
-            time(i) = 2.0 * t + (dist - 2.0 * d) / _Vel;
+            time(i) = 2.0 * adjusted_t + (dist - 2.0 * adjusted_d) / adjusted_vel;
         }
+        
+        // Add 15% safety margin for better tracking
+        time(i) *= 1.15;
+        
+        // Ensure minimum segment time
+        time(i) = std::max(time(i), 0.3);
     }
     return time;
 }
