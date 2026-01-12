@@ -60,11 +60,9 @@ int main(int argc, char** argv) {
     ros::init(argc, argv, "df_node");
     ros::NodeHandle nh;
     
-    string output_path = "d:/HHWW/MRPC-2025-homework/solutions/df_quaternion.csv";
-    // Check if path is passed or we assume relative absolute path
-    // Since I know the workspace path, I will hardcode consistent with workspace_info
-    // Or I can use a relative path if executed from specific location, but hardcoding provided path is safer.
-    // The user provided d:\HHWW\MRPC-2025-homework...
+    // 在虚拟机中运行时，通常当前工作目录是 ~/MRPC-2025-homework/code
+    // solutions 目录与 code 同级，所以使用相对路径 ../solutions/df_quaternion.csv
+    string output_path = "../solutions/df_quaternion.csv";
     
     ofstream file(output_path);
     if (!file.is_open()) {
