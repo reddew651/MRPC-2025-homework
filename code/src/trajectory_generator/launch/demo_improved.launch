@@ -47,8 +47,8 @@
 <arg name="optimizer" default="1"/>
 
 <!-- 改进的飞行参数 -->
-<arg name="max_vel" default="4.0"/>
-<arg name="max_acc" default="3.0"/>
+<arg name="max_vel" default="3.0"/>
+<arg name="max_acc" default="2.0"/>
 
   <!-- 改进版轨迹优化节点 -->
   <node pkg="trajectory_generator" type="trajectory_generator_improved" name="trajectory_generator_node" output="screen" required="true">
