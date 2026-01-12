@@ -1,6 +1,6 @@
-# MAXIMUM gains for MINIMUM RMSE
+# EXTREME gains for ABSOLUTE MINIMUM RMSE
 gains:
-  pos: {x: 50.0, y: 50.0, z: 55.0}
-  vel: {x: 20.0, y: 20.0, z: 22.0}
-  rot: {x: 5.0, y: 5.0, z: 1.5}
-  ang: {x: 0.6, y: 0.6, z: 0.2}
+  pos: {x: 80.0, y: 80.0, z: 90.0}
+  vel: {x: 25.0, y: 25.0, z: 28.0}
+  rot: {x: 6.0, y: 6.0, z: 2.0}
+  ang: {x: 0.8, y: 0.8, z: 0.25}

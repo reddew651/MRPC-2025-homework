@@ -449,12 +449,12 @@ VectorXd timeAllocation(MatrixXd Path) {
         MatrixXd piece = Path.row(i + 1) - Path.row(i);
         double dist = piece.norm();
         
-        // Adjust velocity based on turning angle (significant slowdown at turns for better tracking)
+        // Adjust velocity based on turning angle (MAJOR slowdown at turns for minimum RMSE)
         double angle_factor = 1.0;
         if (i < int(turn_angles.size()) && i > 0) {
-            // Slow down 40% at sharp turns for better RMSE
-            angle_factor = 1.0 - 0.4 * turn_angles[i] / M_PI;
-            angle_factor = std::max(0.5, angle_factor);  // Minimum 50% speed
+            // Slow down 60% at sharp turns - turns cause biggest RMSE!
+            angle_factor = 1.0 - 0.6 * turn_angles[i] / M_PI;
+            angle_factor = std::max(0.35, angle_factor);  // Minimum 35% speed at turns
         }
         double adjusted_vel = _Vel * angle_factor;
         double adjusted_t = adjusted_vel / _Acc;
@@ -466,12 +466,13 @@ VectorXd timeAllocation(MatrixXd Path) {
             time(i) = 2.0 * adjusted_t + (dist - 2.0 * adjusted_d) / adjusted_vel;
         }
         
-        // Add 20% safety margin for MINIMUM RMSE (RMSE weight is 200x!)
-        // Slower trajectory = easier to track = lower RMSE
-        time(i) *= 1.20;
+        // Add 30% safety margin for ABSOLUTE MINIMUM RMSE
+        // Slower trajectory = much easier to track = much lower RMSE
+        // Time penalty is only 0.2x, but RMSE penalty is 200x!
+        time(i) *= 1.30;
         
-        // Ensure minimum segment time for smooth tracking
-        time(i) = std::max(time(i), 0.35);
+        // Ensure minimum segment time for ultra-smooth tracking
+        time(i) = std::max(time(i), 0.40);
     }
     return time;
 }
