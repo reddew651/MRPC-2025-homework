@@ -451,9 +451,9 @@ VectorXd timeAllocation(MatrixXd Path) {
         // Adjust velocity based on turning angle (slow down at turns to reduce tracking error)
         double angle_factor = 1.0;
         if (i < int(turn_angles.size()) && i > 0) {
-            // 在转弯处进一步减速，优先降低跟踪误差
-            angle_factor = 1.0 - 0.65 * turn_angles[i] / M_PI;
-            angle_factor = std::max(0.28, angle_factor);  // 最低 28% 速度
+            // 在转弯处更强减速，优先降低跟踪误差
+            angle_factor = 1.0 - 0.70 * turn_angles[i] / M_PI;
+            angle_factor = std::max(0.25, angle_factor);  // 最低 25% 速度
         }
         double adjusted_vel = _Vel * angle_factor;
         double adjusted_t = adjusted_vel / _Acc;
@@ -466,10 +466,10 @@ VectorXd timeAllocation(MatrixXd Path) {
         }
         
         // 更保守的时间裕量，优先压低 RMSE
-        time(i) *= 1.60;
+        time(i) *= 1.70;
 
         // 保证每段有一定时间，避免过快导致控制抖动
-        time(i) = std::max(time(i), 0.45);
+        time(i) = std::max(time(i), 0.50);
     }
     return time;
 }
