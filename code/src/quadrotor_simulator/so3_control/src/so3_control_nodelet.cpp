@@ -100,11 +100,10 @@ SO3ControlNodelet::position_cmd_callback(
   des_acc_ = Eigen::Vector3d(cmd->acceleration.x, cmd->acceleration.y,
                              cmd->acceleration.z);
 
-  // EXTREME gains for ABSOLUTE MINIMUM RMSE
-  // RMSE = sqrt(mean((des_pos - pos)^2)), weight is 200x!
-  // Higher gains = position error (des_pos - pos) converges faster = lower RMSE
-  kx_ = Eigen::Vector3d(80.0, 80.0, 90.0);  // Position gains - MAXIMUM
-  kv_ = Eigen::Vector3d(25.0, 25.0, 28.0);  // Velocity gains - MAXIMUM
+  // Position / velocity gains (task 3 tuning)
+  //  略偏“紧”的一组参数，优先压低 RMSE
+  kx_ = Eigen::Vector3d(26.0, 26.0, 34.0);
+  kv_ = Eigen::Vector3d(10.0, 10.0, 12.0);
 
   des_yaw_              = cmd->yaw;
   des_yaw_dot_          = cmd->yaw_dot;

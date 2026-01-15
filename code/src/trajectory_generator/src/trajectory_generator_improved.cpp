@@ -433,7 +433,6 @@ void trajOptimization(Eigen::MatrixXd path) {
 VectorXd timeAllocation(MatrixXd Path) {
     VectorXd time(Path.rows() - 1);
     const double t = _Vel / _Acc;
-    const double d = 0.5 * _Acc * t * t;
     
     // Calculate turning angles for velocity adjustment
     std::vector<double> turn_angles(Path.rows() - 1, 0.0);
@@ -449,12 +448,12 @@ VectorXd timeAllocation(MatrixXd Path) {
         MatrixXd piece = Path.row(i + 1) - Path.row(i);
         double dist = piece.norm();
         
-        // Adjust velocity based on turning angle (MAJOR slowdown at turns for minimum RMSE)
+        // Adjust velocity based on turning angle (slow down at turns to reduce tracking error)
         double angle_factor = 1.0;
         if (i < int(turn_angles.size()) && i > 0) {
-            // Slow down 70% at sharp turns - turns cause biggest RMSE!
-            angle_factor = 1.0 - 0.7 * turn_angles[i] / M_PI;
-            angle_factor = std::max(0.25, angle_factor);  // Minimum 25% speed at turns
+            // 在转弯处进一步减速，优先降低跟踪误差
+            angle_factor = 1.0 - 0.65 * turn_angles[i] / M_PI;
+            angle_factor = std::max(0.28, angle_factor);  // 最低 28% 速度
         }
         double adjusted_vel = _Vel * angle_factor;
         double adjusted_t = adjusted_vel / _Acc;
@@ -466,13 +465,11 @@ VectorXd timeAllocation(MatrixXd Path) {
             time(i) = 2.0 * adjusted_t + (dist - 2.0 * adjusted_d) / adjusted_vel;
         }
         
-        // Add 60% safety margin for ABSOLUTE MINIMUM RMSE
-        // Slower trajectory = much easier to track = much lower RMSE
-        // Time penalty is only 0.2x, but RMSE penalty is 200x!
+        // 更保守的时间裕量，优先压低 RMSE
         time(i) *= 1.60;
-        
-        // Ensure minimum segment time for ultra-smooth tracking
-        time(i) = std::max(time(i), 0.50);
+
+        // 保证每段有一定时间，避免过快导致控制抖动
+        time(i) = std::max(time(i), 0.45);
     }
     return time;
 }
