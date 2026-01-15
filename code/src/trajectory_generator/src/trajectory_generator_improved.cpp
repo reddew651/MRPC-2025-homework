@@ -467,10 +467,10 @@ VectorXd timeAllocation(MatrixXd Path) {
         }
         
         // 更保守的时间裕量，优先压低 RMSE
-        time(i) *= 1.60;
+        time(i) *= 1.65;
 
         // 保证每段有一定时间，避免过快导致控制抖动
-        time(i) = std::max(time(i), 0.45);
+        time(i) = std::max(time(i), 0.48);
     }
     return time;
 }
