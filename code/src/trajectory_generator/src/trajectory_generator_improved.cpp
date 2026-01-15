@@ -192,7 +192,8 @@ void execCallback(const ros::TimerEvent &e) {
         case EXEC_TRAJ: {
             ros::Time time_now = ros::Time::now();
             double t_cur = (time_now - time_traj_start).toSec();
-            double t_replan = 1.0;
+            // 延迟重规划触发，减少轨迹重切换带来的抖动与不确定性
+            double t_replan = 3.0;
             t_cur = min(time_duration, t_cur);
             
             if (t_cur > time_duration - 1e-2) {
@@ -451,9 +452,9 @@ VectorXd timeAllocation(MatrixXd Path) {
         // Adjust velocity based on turning angle (slow down at turns to reduce tracking error)
         double angle_factor = 1.0;
         if (i < int(turn_angles.size()) && i > 0) {
-            // 在转弯处更强减速，优先降低跟踪误差
-            angle_factor = 1.0 - 0.70 * turn_angles[i] / M_PI;
-            angle_factor = std::max(0.25, angle_factor);  // 最低 25% 速度
+            // 在转弯处进一步减速，优先降低跟踪误差
+            angle_factor = 1.0 - 0.65 * turn_angles[i] / M_PI;
+            angle_factor = std::max(0.28, angle_factor);  // 最低 28% 速度
         }
         double adjusted_vel = _Vel * angle_factor;
         double adjusted_t = adjusted_vel / _Acc;
@@ -466,10 +467,10 @@ VectorXd timeAllocation(MatrixXd Path) {
         }
         
         // 更保守的时间裕量，优先压低 RMSE
-        time(i) *= 1.70;
+        time(i) *= 1.60;
 
         // 保证每段有一定时间，避免过快导致控制抖动
-        time(i) = std::max(time(i), 0.50);
+        time(i) = std::max(time(i), 0.45);
     }
     return time;
 }

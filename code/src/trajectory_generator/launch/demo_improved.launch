@@ -47,8 +47,8 @@
 <arg name="optimizer" default="1"/>
 
 <!-- 改进的飞行参数 -->
-<arg name="max_vel" default="2.0"/>
-<arg name="max_acc" default="1.3"/>
+<arg name="max_vel" default="2.2"/>
+<arg name="max_acc" default="1.5"/>
 
   <!-- 改进版轨迹优化节点 -->
   <node pkg="trajectory_generator" type="trajectory_generator_improved" name="trajectory_generator_node" output="screen" required="true">
@@ -77,8 +77,8 @@
       <param name="map/z_size" value="$(arg map_size_z)"/>
       
       <!-- 重规划参数 -->
-    <param name="replanning/thresh_replan" value="2.0" type="double"/>
-    <param name="replanning/thresh_no_replan" value="2.5" type="double"/>
+    <param name="replanning/thresh_replan" value="2.5" type="double"/>
+    <param name="replanning/thresh_no_replan" value="3.0" type="double"/>
       <param name="path/resolution" value="0.15"/>
       <param name="planning/demox" value="0"/>
   </node>
