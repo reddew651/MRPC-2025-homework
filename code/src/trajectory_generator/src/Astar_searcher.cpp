@@ -480,12 +480,12 @@ bool Astarpath::AstarSearch(Vector3d start_pt, Vector3d end_pt) {
 vector<Vector3d> Astarpath::getPath() {
   vector<Vector3d> path;
   vector<MappingNodePtr> front_path;
-do
-{
-terminatePtr->coord=gridIndex2coord(terminatePtr->index);
-front_path.push_back(terminatePtr);
-terminatePtr=terminatePtr->Father;
-}while(terminatePtr->Father!=NULL);
+  MappingNodePtr ptr = terminatePtr;
+  while (ptr != NULL) {
+    ptr->coord = gridIndex2coord(ptr->index);
+    front_path.push_back(ptr);
+    ptr = ptr->Father;
+  }
   /**
    *
    * STEP 1.3:  追溯找到的路径

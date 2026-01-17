@@ -101,9 +101,9 @@ SO3ControlNodelet::position_cmd_callback(
                              cmd->acceleration.z);
 
   // Position / velocity gains (task 3 tuning)
-  //  小幅提高刚度与阻尼，继续压低 RMSE
-  kx_ = Eigen::Vector3d(27.0, 27.0, 35.0);
-  kv_ = Eigen::Vector3d(10.5, 10.5, 12.5);
+  //  稍降刚度并提高阻尼，减少超调与振荡
+  kx_ = Eigen::Vector3d(24.0, 24.0, 30.0);
+  kv_ = Eigen::Vector3d(12.0, 12.0, 14.0);
 
   des_yaw_              = cmd->yaw;
   des_yaw_dot_          = cmd->yaw_dot;
